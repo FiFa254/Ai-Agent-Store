@@ -40,13 +40,96 @@ interface AdminPanelProps {
   addNotification: (msg: string, type: 'success' | 'warning') => void;
 }
 
-export default function AdminPanel({ 
-  products, 
-  sales, 
-  alerts, 
+const ADMIN_SESSION_KEY = 'grocerai_admin_password';
+
+export default function AdminPanel({
+  products,
+  sales,
+  alerts,
   refreshData,
-  addNotification 
+  addNotification
 }: AdminPanelProps) {
+  // --- Admin authentication gate ---
+  // The Admin Panel used to render (and its mutating fetch calls used to
+  // succeed) for anyone who clicked the tab, with no login of any kind. The
+  // server now rejects unauthenticated writes (see server.ts requireAdmin),
+  // so this gate matches that on the client: nothing here renders until a
+  // password is verified against the server.
+  const [adminPassword, setAdminPassword] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isVerifyingSession, setIsVerifyingSession] = useState(true);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem(ADMIN_SESSION_KEY);
+    if (!stored) {
+      setIsVerifyingSession(false);
+      return;
+    }
+    fetch('/api/admin/verify', {
+      method: 'POST',
+      headers: { 'x-admin-password': stored },
+    })
+      .then((res) => {
+        if (res.ok) {
+          setAdminPassword(stored);
+          setIsAuthenticated(true);
+        } else {
+          sessionStorage.removeItem(ADMIN_SESSION_KEY);
+        }
+      })
+      .catch(() => {
+        // Network error verifying a previously-stored session; leave the
+        // user at the login form rather than assuming they're authenticated.
+      })
+      .finally(() => setIsVerifyingSession(false));
+  }, []);
+
+  const handleAdminLogin = async (e: FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    setIsLoggingIn(true);
+    try {
+      const res = await fetch('/api/admin/verify', {
+        method: 'POST',
+        headers: { 'x-admin-password': passwordInput },
+      });
+      if (res.ok) {
+        sessionStorage.setItem(ADMIN_SESSION_KEY, passwordInput);
+        setAdminPassword(passwordInput);
+        setIsAuthenticated(true);
+        setPasswordInput('');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setLoginError(data.error || 'รหัสผ่านไม่ถูกต้อง');
+      }
+    } catch (err) {
+      setLoginError('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleAdminLogout = () => {
+    sessionStorage.removeItem(ADMIN_SESSION_KEY);
+    setAdminPassword('');
+    setIsAuthenticated(false);
+  };
+
+  // Wraps fetch to attach the admin password header, so every mutating call
+  // below (add/update/delete product, resolve alert) is authenticated.
+  const adminFetch = (url: string, options: RequestInit = {}) => {
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        'x-admin-password': adminPassword,
+      },
+    });
+  };
+
   const [searchTerm, setSearchTerm] = useState('');
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -245,7 +328,7 @@ export default function AdminPanel({
 
     setIsUpdating(true);
     try {
-      const res = await fetch('/api/products', {
+      const res = await adminFetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -286,7 +369,7 @@ export default function AdminPanel({
 
     setIsUpdating(true);
     try {
-      const res = await fetch('/api/products', {
+      const res = await adminFetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingProduct),
@@ -308,7 +391,7 @@ export default function AdminPanel({
     if (!confirm(`ต้องการลบสินค้า "${name}" ใช่หรือไม่?`)) return;
 
     try {
-      const res = await fetch(`/api/products/${id}`, {
+      const res = await adminFetch(`/api/products/${id}`, {
         method: 'DELETE'
       });
 
@@ -325,7 +408,7 @@ export default function AdminPanel({
   const handleRestockCount = async (product: Product, countToAdd = 10) => {
     try {
       const updatedStock = product.stock + countToAdd;
-      const res = await fetch('/api/products', {
+      const res = await adminFetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -341,7 +424,7 @@ export default function AdminPanel({
       // Look for corresponding alerts and auto resolve them in database
       const relatedAlerts = alerts.filter(a => a.productId === product.id && !a.resolved);
       for (const alert of relatedAlerts) {
-        await fetch('/api/alerts/resolve', {
+        await adminFetch('/api/alerts/resolve', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: alert.id })
@@ -354,15 +437,63 @@ export default function AdminPanel({
     }
   };
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filteredProducts = products.filter(p =>
+    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  if (isVerifyingSession) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="w-8 h-8 border-4 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div id="admin-login-section" className="max-w-sm mx-auto mt-16 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-slate-900 mb-1">เข้าสู่ระบบผู้ดูแล</h2>
+        <p className="text-xs text-slate-500 mb-4">กรุณาใส่รหัสผ่านผู้ดูแลระบบเพื่อเข้าถึงแดชบอร์ดจัดการสต็อก</p>
+        <form onSubmit={handleAdminLogin} className="space-y-3">
+          <input
+            id="admin-password-input"
+            type="password"
+            value={passwordInput}
+            onChange={(e) => setPasswordInput(e.target.value)}
+            placeholder="รหัสผ่านผู้ดูแล"
+            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+            autoFocus
+          />
+          {loginError && <p className="text-xs text-rose-600">{loginError}</p>}
+          <button
+            id="admin-login-btn"
+            type="submit"
+            disabled={isLoggingIn || !passwordInput}
+            className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-lg py-2 text-sm font-semibold transition-colors"
+          >
+            {isLoggingIn ? 'กำลังตรวจสอบ...' : 'เข้าสู่ระบบ'}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div id="admin-panel-section" className="space-y-6 max-w-7xl mx-auto px-4 py-3">
-      
+
+      {/* Sign-out control for the admin session */}
+      <div className="flex justify-end">
+        <button
+          id="admin-logout-btn"
+          onClick={handleAdminLogout}
+          className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1"
+        >
+          ออกจากระบบผู้ดูแล
+        </button>
+      </div>
+
       {/* Top statistics banners */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         

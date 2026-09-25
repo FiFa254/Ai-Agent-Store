@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
@@ -10,6 +11,32 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// --- Admin authentication ---
+// Protects mutating admin endpoints (create/update/delete products, resolve alerts).
+// Set ADMIN_PASSWORD in .env; if it's not set, admin actions are refused outright
+// rather than left open, so a missing config fails closed instead of open.
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+
+function safeEquals(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if (!ADMIN_PASSWORD) {
+    return res.status(503).json({
+      error: 'Admin access is not configured on this server. Set ADMIN_PASSWORD in the environment.',
+    });
+  }
+  const provided = req.header('x-admin-password') || '';
+  if (!provided || !safeEquals(provided, ADMIN_PASSWORD)) {
+    return res.status(401).json({ error: 'Unauthorized: invalid admin password.' });
+  }
+  next();
+}
 
 // Initialize Gemini SDK with custom user agent as strict guidelines demand
 const ai = new GoogleGenAI({
@@ -31,6 +58,7 @@ const DATA_DIR = path.join(process.cwd(), 'data');
 const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
 const SALES_FILE = path.join(DATA_DIR, 'sales.json');
 const ALERTS_FILE = path.join(DATA_DIR, 'alerts.json');
+const PENDING_CHECKOUTS_FILE = path.join(DATA_DIR, 'pendingCheckouts.json');
 
 // Ensure database directory and files exist
 if (!fs.existsSync(DATA_DIR)) {
@@ -163,6 +191,7 @@ function writeDb(file: string, data: any) {
 let products = readDb(PRODUCTS_FILE, initialProducts);
 let sales = readDb(SALES_FILE, []);
 let alerts = readDb(ALERTS_FILE, []);
+let pendingCheckouts = readDb(PENDING_CHECKOUTS_FILE, []);
 
 // Initial generation of low stock alerts if products are already low
 function checkLowStockAlerts() {
@@ -203,7 +232,14 @@ app.get('/api/products', (req, res) => {
   res.json(products);
 });
 
-app.post('/api/products', (req, res) => {
+// Lightweight endpoint the admin login form calls to verify a password without
+// performing a mutation. Also gated by requireAdmin, so a right response means
+// the supplied x-admin-password header is correct.
+app.post('/api/admin/verify', requireAdmin, (req, res) => {
+  res.json({ success: true });
+});
+
+app.post('/api/products', requireAdmin, (req, res) => {
   const { id, name, price, promoPrice, category, stock, minStock, description } = req.body;
   
   if (!name || isNaN(Number(price)) || isNaN(Number(stock)) || isNaN(Number(minStock))) {
@@ -236,7 +272,7 @@ app.post('/api/products', (req, res) => {
   res.json({ success: true, product: productData });
 });
 
-app.delete('/api/products/:id', (req, res) => {
+app.delete('/api/products/:id', requireAdmin, (req, res) => {
   const { id } = req.params;
   products = readDb(PRODUCTS_FILE, initialProducts);
   const updatedProducts = products.filter((p: any) => p.id !== id);
@@ -252,6 +288,15 @@ app.get('/api/sales', (req, res) => {
 });
 
 // 3. CHECKOUT (Handles QR Payment and registers sales)
+//
+// Cash and QR/PromptPay are handled differently on purpose: cash is paid at the
+// counter the instant checkout is triggered, so it's safe to deduct stock and
+// log the sale right away. QR payment is NOT confirmed yet at this point — the
+// customer has only just been shown the QR code — so stock is left untouched
+// and the order is held as "pending" until /api/checkout/confirm is called.
+// (Previously this endpoint deducted stock and logged the sale for both
+// payment methods immediately, so a customer who opened the QR modal and never
+// actually paid still left behind a "completed" sale and reduced stock.)
 app.post('/api/checkout', (req, res) => {
   const { items, paymentMethod } = req.body; // Array of { productId, quantity }
 
@@ -260,8 +305,6 @@ app.post('/api/checkout', (req, res) => {
   }
 
   products = readDb(PRODUCTS_FILE, initialProducts);
-  sales = readDb(SALES_FILE, []);
-  alerts = readDb(ALERTS_FILE, []);
 
   let total = 0;
   const itemsSold = [];
@@ -285,11 +328,9 @@ app.post('/api/checkout', (req, res) => {
     });
   }
 
-  // Deduct inventory and log price (use promo price if available)
+  // Price the order (use promo price if available). Stock is not touched here.
   for (const item of items) {
     const prod = products.find((p: any) => p.id === item.productId)!;
-    prod.stock -= item.quantity;
-    
     const actualPrice = prod.promoPrice !== undefined ? prod.promoPrice : prod.price;
     const lineTotal = actualPrice * item.quantity;
     total += lineTotal;
@@ -302,23 +343,119 @@ app.post('/api/checkout', (req, res) => {
     });
   }
 
-  // Save updated products and create low stock alerts automatically
-  writeDb(PRODUCTS_FILE, products);
-  checkLowStockAlerts();
+  const method = paymentMethod || 'promptpay';
 
-  // Save Sales Log
-  const newSale = {
-    id: `sale_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+  if (method === 'cash') {
+    // Cash is paid immediately at the counter: commit right away.
+    products = readDb(PRODUCTS_FILE, initialProducts);
+    for (const item of items) {
+      const prod = products.find((p: any) => p.id === item.productId)!;
+      prod.stock -= item.quantity;
+    }
+    writeDb(PRODUCTS_FILE, products);
+    checkLowStockAlerts();
+
+    sales = readDb(SALES_FILE, []);
+    const newSale = {
+      id: `sale_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      timestamp: new Date().toISOString(),
+      items: itemsSold,
+      total,
+      paymentMethod: method,
+    };
+    sales.push(newSale);
+    writeDb(SALES_FILE, sales);
+
+    return res.json({ success: true, sale: newSale, pending: false });
+  }
+
+  // QR / PromptPay: hold the order as pending. Stock is reserved conceptually
+  // (we already checked availability above) but not deducted, and no sale is
+  // recorded, until the customer confirms payment via /api/checkout/confirm.
+  pendingCheckouts = readDb(PENDING_CHECKOUTS_FILE, []);
+  const pendingCheckout = {
+    id: `pending_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
     timestamp: new Date().toISOString(),
     items: itemsSold,
     total,
-    paymentMethod: paymentMethod || 'promptpay',
+    paymentMethod: method,
   };
-  
+  pendingCheckouts.push(pendingCheckout);
+  writeDb(PENDING_CHECKOUTS_FILE, pendingCheckouts);
+
+  res.json({ success: true, sale: pendingCheckout, pending: true });
+});
+
+// 3b. CONFIRM a pending QR/PromptPay checkout — actually deducts stock and
+// records the sale. Called once the customer confirms they've paid.
+app.post('/api/checkout/confirm', (req, res) => {
+  const { id } = req.body;
+  if (!id) {
+    return res.status(400).json({ error: 'Missing checkout id.' });
+  }
+
+  pendingCheckouts = readDb(PENDING_CHECKOUTS_FILE, []);
+  const idx = pendingCheckouts.findIndex((c: any) => c.id === id);
+  if (idx < 0) {
+    return res.status(404).json({ error: 'ไม่พบรายการที่รอชำระเงินนี้ อาจถูกยกเลิกหรือหมดอายุไปแล้ว กรุณาทำรายการใหม่' });
+  }
+  const pending = pendingCheckouts[idx];
+
+  // Re-check stock now, in case it changed while the customer was looking at
+  // the QR code (e.g. another customer bought the last unit in the meantime).
+  products = readDb(PRODUCTS_FILE, initialProducts);
+  const stockShortages: any[] = [];
+  for (const item of pending.items) {
+    const prod = products.find((p: any) => p.id === item.productId);
+    if (!prod || prod.stock < item.quantity) {
+      stockShortages.push({ name: item.name, requested: item.quantity, available: prod ? prod.stock : 0 });
+    }
+  }
+  if (stockShortages.length > 0) {
+    pendingCheckouts.splice(idx, 1);
+    writeDb(PENDING_CHECKOUTS_FILE, pendingCheckouts);
+    return res.status(400).json({
+      error: 'สต็อกสินค้าเปลี่ยนแปลงระหว่างรอชำระเงิน กรุณาทำรายการใหม่',
+      details: stockShortages,
+    });
+  }
+
+  for (const item of pending.items) {
+    const prod = products.find((p: any) => p.id === item.productId)!;
+    prod.stock -= item.quantity;
+  }
+  writeDb(PRODUCTS_FILE, products);
+  checkLowStockAlerts();
+
+  sales = readDb(SALES_FILE, []);
+  const newSale = {
+    id: `sale_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+    timestamp: new Date().toISOString(),
+    items: pending.items,
+    total: pending.total,
+    paymentMethod: pending.paymentMethod,
+  };
   sales.push(newSale);
   writeDb(SALES_FILE, sales);
 
+  pendingCheckouts.splice(idx, 1);
+  writeDb(PENDING_CHECKOUTS_FILE, pendingCheckouts);
+
   res.json({ success: true, sale: newSale });
+});
+
+// 3c. CANCEL a pending QR/PromptPay checkout (e.g. the customer closed the
+// modal without paying). Stock was never deducted for a pending checkout, so
+// this just cleans up the pending record.
+app.post('/api/checkout/cancel', (req, res) => {
+  const { id } = req.body;
+  if (!id) {
+    return res.status(400).json({ error: 'Missing checkout id.' });
+  }
+  pendingCheckouts = readDb(PENDING_CHECKOUTS_FILE, []);
+  pendingCheckouts = pendingCheckouts.filter((c: any) => c.id !== id);
+  writeDb(PENDING_CHECKOUTS_FILE, pendingCheckouts);
+  res.json({ success: true });
 });
 
 // 4. ALERTS
@@ -327,7 +464,7 @@ app.get('/api/alerts', (req, res) => {
   res.json(alerts);
 });
 
-app.post('/api/alerts/resolve', (req, res) => {
+app.post('/api/alerts/resolve', requireAdmin, (req, res) => {
   const { id } = req.body;
   alerts = readDb(ALERTS_FILE, []);
   const alertIndex = alerts.findIndex((a: any) => a.id === id);
