@@ -278,17 +278,55 @@ export default function CustomerStore({
     }
   };
 
-  // Simulated QR scan confirmation
-  const confirmQrCodePayment = () => {
+  // QR scan confirmation: this is the moment the customer says they've
+  // actually paid, so this is what finalizes the order — deducting stock and
+  // logging the sale server-side (via /api/checkout/confirm). Before this,
+  // the order only exists as a "pending" hold that never touched inventory.
+  const confirmQrCodePayment = async () => {
+    if (!checkoutResult?.id) return;
     setIsProcessingPayment(true);
-    setTimeout(() => {
+
+    try {
+      const res = await fetch('/api/checkout/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: checkoutResult.id })
+      });
+
+      if (!res.ok) {
+        const errDetails = await res.json().catch(() => ({}));
+        throw new Error(errDetails.error || 'ไม่สามารถยืนยันการชำระเงินได้');
+      }
+
+      const confirmData = await res.json();
+      setCheckoutResult(confirmData.sale);
       setIsProcessingPayment(false);
       setPaymentSuccess(true);
       setCart([]);
       onNewSale();
       refreshProducts();
       addNotification('ชำระเงินผ่าน PromptPay QR Code สำเร็จแล้ว!', 'success');
-    }, 2000);
+    } catch (err: any) {
+      setIsProcessingPayment(false);
+      setCheckoutModalOpen(false);
+      addNotification(err.message || 'ไม่สามารถยืนยันการชำระเงินได้ กรุณาลองใหม่', 'warning');
+    }
+  };
+
+  // Best-effort cleanup: if the customer closes the QR modal without paying,
+  // release the pending hold server-side instead of leaving it orphaned.
+  // Stock was never deducted for it, so this is just housekeeping.
+  const cancelPendingCheckout = () => {
+    if (paymentMethod === 'promptpay' && checkoutResult?.id && !paymentSuccess) {
+      fetch('/api/checkout/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: checkoutResult.id })
+      }).catch(() => {
+        // Non-critical: the pending record will simply sit unused.
+      });
+    }
+    setCheckoutModalOpen(false);
   };
 
   // Build svg path for dynamic QR code image
@@ -756,7 +794,7 @@ export default function CustomerStore({
               exit={{ opacity: 0 }}
               id="modal-backdrop"
               onClick={() => {
-                if (!isProcessingPayment) setCheckoutModalOpen(false);
+                if (!isProcessingPayment) cancelPendingCheckout();
               }}
               className="fixed inset-0 bg-slate-950"
             />
@@ -777,7 +815,7 @@ export default function CustomerStore({
                 {!isProcessingPayment && !paymentSuccess && (
                   <button
                     id="close-modal-btn"
-                    onClick={() => setCheckoutModalOpen(false)}
+                    onClick={cancelPendingCheckout}
                     className="absolute top-3 right-4 text-slate-300 hover:text-white font-semibold"
                   >
                     ✕
