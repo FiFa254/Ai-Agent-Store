@@ -1,9 +1,10 @@
 import express from 'express';
 import path from 'path';
-import fs from 'fs';
 import crypto from 'crypto';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
+import { Store } from './server/store';
+import { DEFAULT_CONNECTION_STRING } from './server/db';
 import { createServer as createViteServer } from 'vite';
 
 dotenv.config();
@@ -50,183 +51,30 @@ app.use(express.json());
 
 const PORT = Number(process.env.PORT) || 3000;
 
-// Persistent Database Files
+// --- DATABASE (SQL Server, see server/store.ts) ---
+// Default: local SQL Server, Windows login, database GroceryAI (created on first start).
+// Override with MSSQL_CONNECTION_STRING in .env.
 const DATA_DIR = path.join(process.cwd(), 'data');
-const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
-const SALES_FILE = path.join(DATA_DIR, 'sales.json');
-const ALERTS_FILE = path.join(DATA_DIR, 'alerts.json');
-const PENDING_CHECKOUTS_FILE = path.join(DATA_DIR, 'pendingCheckouts.json');
+const CONNECTION_STRING = process.env.MSSQL_CONNECTION_STRING || DEFAULT_CONNECTION_STRING;
+let store: Store;
 
-// Ensure database directory and files exist
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+// Express 4 does not catch rejected promises from async handlers; forward them to the error handler.
+for (const method of ['get', 'post', 'delete'] as const) {
+  const original = app[method].bind(app) as (...args: any[]) => any;
+  (app as any)[method] = (route: any, ...handlers: any[]) =>
+    handlers.length === 0
+      ? original(route)
+      : original(route, ...handlers.map((h) =>
+          typeof h === 'function' && h.length < 4
+            ? (req: any, res: any, next: any) => Promise.resolve().then(() => h(req, res, next)).catch(next)
+            : h));
 }
-
-// Initial mock products dataset (Thai Grocery Theme)
-const initialProducts = [
-  {
-    id: 'prod_1',
-    name: 'ข้าวหอมมะลิ คัดพิเศษ (5 กก.)',
-    price: 185,
-    promoPrice: 165,
-    category: 'ข้าวสาร/แป้ง',
-    stock: 12,
-    minStock: 4,
-    description: 'ข้าวหอมมะลิแท้คัดพิเศษ หอม นุ่ม น่ารับประทาน หุงขึ้นหม้อ',
-  },
-  {
-    id: 'prod_2',
-    name: 'นมสดพาสเจอร์ไรส์ รสจืด Meiji (2 ลิตร)',
-    price: 95,
-    category: 'ของสด/นม',
-    stock: 3,
-    minStock: 5,
-    description: 'นมโคแท้ 100% สดใหม่ แคลเซียมสูง ซ่อมแซมกระดูกและฟัน',
-  },
-  {
-    id: 'prod_3',
-    name: 'บะหมี่กึ่งสำเร็จรูป ไวไว รสปรุงสำเร็จ (แพ็ค 10)',
-    price: 65,
-    promoPrice: 59,
-    category: 'อาหารแห้ง/กึ่งสำเร็จรูป',
-    stock: 35,
-    minStock: 8,
-    description: 'บะหมี่เส้นเหนียวนุ่ม รสชาติเข้มข้น ถูกปากคนไทยมายาวนาน',
-  },
-  {
-    id: 'prod_4',
-    name: 'น้ำมันพืช ตราองุ่น (1 ลิตร)',
-    price: 52,
-    category: 'เครื่องปรุง/น้ำมัน',
-    stock: 8,
-    minStock: 4,
-    description: 'น้ำมันถั่วเหลืองบริสุทธิ์ ผ่านกระบวนการกลั่นที่ทันสมัย ไม่มีคอเลสเตอรอล',
-  },
-  {
-    id: 'prod_5',
-    name: 'ไข่ไก่สด เบอร์ 2 (แผง 10 ฟอง)',
-    price: 60,
-    promoPrice: 52,
-    category: 'ของสด/นม',
-    stock: 15,
-    minStock: 5,
-    description: 'ไข่ไก่สดส่งตรงจากฟาร์ม สะอาด มั่นใจได้ในความสดใหม่ โปรตีนสูง',
-  },
-  {
-    id: 'prod_6',
-    name: 'กาแฟสำเร็จรูป 3-in-1 เบนเนตต์',
-    price: 110,
-    category: 'เครื่องดื่ม',
-    stock: 2,
-    minStock: 5,
-    description: 'กาแฟปรุงสำเร็จสัญชาติอิตาลี หอม กลมกล่อม เข้มเต็มรสกาแฟแท้',
-  },
-  {
-    id: 'prod_7',
-    name: 'น้ำตาลทรายขาว มิตรผล (1 กก.)',
-    price: 28,
-    category: 'เครื่องปรุง/น้ำมัน',
-    stock: 20,
-    minStock: 5,
-    description: 'น้ำตาลทรายบริสุทธิ์เกรดพรีเมียม สะอาด ละลายง่าย ไม่มีสารฟอกสี',
-  },
-  {
-    id: 'prod_8',
-    name: 'ยาบำรุงผม แพนทีน แชมพู (380 มล.)',
-    price: 145,
-    promoPrice: 125,
-    category: 'ของใช้ส่วนประกอบ/ส่วนตัว',
-    stock: 18,
-    minStock: 4,
-    description: 'แชมพูสูตรฟื้นบำรุงผมแห้งเสีย ให้ผมนุ่มลื่น มีน้ำหนัก สุขภาพดี',
-  },
-  {
-    id: 'prod_9',
-    name: 'สบู่อนามัย เดทตอล สูตรออริจินัล',
-    price: 24,
-    category: 'ของใช้ส่วนประกอบ/ส่วนตัว',
-    stock: 22,
-    minStock: 6,
-    description: 'ช่วยปกป้องผิวจากแบคทีเรียได้อย่างมีประสิทธิภาพ สะอาด มั่นใจทุกวัน',
-  },
-  {
-    id: 'prod_10',
-    name: 'น้ำยาล้างจาน ตราซันไลต์ ถุงเติม (500 มล.)',
-    price: 18,
-    category: 'น้ำยา/ของใช้ในบ้าน',
-    stock: 14,
-    minStock: 4,
-    description: 'ล้างคราบมัน คราบอาหาร ได้อย่างหมดจด ด้วยพลังเลมอนแท้',
-  }
-];
-
-// Helper to read JSON DB
-function readDb(file: string, fallback: any) {
-  try {
-    if (!fs.existsSync(file)) {
-      fs.writeFileSync(file, JSON.stringify(fallback, null, 2));
-      return fallback;
-    }
-    const data = fs.readFileSync(file, 'utf8');
-    return JSON.parse(data);
-  } catch (err) {
-    console.error(`Error reading ${file}:`, err);
-    return fallback;
-  }
-}
-
-// Helper to write JSON DB
-function writeDb(file: string, data: any) {
-  try {
-    fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
-  } catch (err) {
-    console.error(`Error writing ${file}:`, err);
-  }
-}
-
-// Initialize database data
-let products = readDb(PRODUCTS_FILE, initialProducts);
-let sales = readDb(SALES_FILE, []);
-let alerts = readDb(ALERTS_FILE, []);
-let pendingCheckouts = readDb(PENDING_CHECKOUTS_FILE, []);
-
-// Initial generation of low stock alerts if products are already low
-function checkLowStockAlerts() {
-  const currentProducts = readDb(PRODUCTS_FILE, products);
-  const currentAlerts = readDb(ALERTS_FILE, alerts);
-  let changed = false;
-
-  currentProducts.forEach((p: any) => {
-    if (p.stock <= p.minStock) {
-      const exists = currentAlerts.find((a: any) => a.productId === p.id && !a.resolved);
-      if (!exists) {
-        currentAlerts.push({
-          id: `alert_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-          productId: p.id,
-          productName: p.name,
-          currentStock: p.stock,
-          minStock: p.minStock,
-          timestamp: new Date().toISOString(),
-          resolved: false,
-        });
-        changed = true;
-      }
-    }
-  });
-
-  if (changed) {
-    writeDb(ALERTS_FILE, currentAlerts);
-    alerts = currentAlerts;
-  }
-}
-checkLowStockAlerts();
 
 // --- REST API ROUTES ---
 
 // 1. PRODUCTS
-app.get('/api/products', (req, res) => {
-  products = readDb(PRODUCTS_FILE, initialProducts);
-  res.json(products);
+app.get('/api/products', async (req, res) => {
+  res.json(await store.listProducts());
 });
 
 // Lightweight endpoint the admin login form calls to verify a password without
@@ -236,238 +84,96 @@ app.post('/api/admin/verify', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/api/products', requireAdmin, (req, res) => {
+app.post('/api/products', requireAdmin, async (req, res) => {
   const { id, name, price, promoPrice, category, stock, minStock, description } = req.body;
-  
-  if (!name || isNaN(Number(price)) || isNaN(Number(stock)) || isNaN(Number(minStock))) {
+
+  const invalidNumber = (value: unknown) => value === '' || value === null || value === undefined || isNaN(Number(value)) || Number(value) < 0;
+  if (!name || invalidNumber(price) || invalidNumber(stock) || invalidNumber(minStock)
+      || (promoPrice !== undefined && promoPrice !== null && promoPrice !== '' && invalidNumber(promoPrice))) {
     return res.status(400).json({ error: 'Invalid product details provided.' });
   }
 
-  products = readDb(PRODUCTS_FILE, initialProducts);
-  const targetId = id || `prod_${Date.now()}`;
-  const existIdx = products.findIndex((p: any) => p.id === targetId);
-
-  const productData = {
-    id: targetId,
-    name,
-    price: Number(price),
-    promoPrice: promoPrice ? Number(promoPrice) : undefined,
-    category: category || 'ทั่วไป',
-    stock: Number(stock),
-    minStock: Number(minStock),
-    description: description || '',
-  };
-
-  if (existIdx >= 0) {
-    products[existIdx] = productData;
-  } else {
-    products.push(productData);
-  }
-
-  writeDb(PRODUCTS_FILE, products);
-  checkLowStockAlerts(); // Check stock limits instantly
-  res.json({ success: true, product: productData });
+  const product = await store.upsertProduct({ id, name, price, promoPrice, category, stock, minStock, description });
+  res.json({ success: true, product });
 });
 
-app.delete('/api/products/:id', requireAdmin, (req, res) => {
-  const { id } = req.params;
-  products = readDb(PRODUCTS_FILE, initialProducts);
-  const updatedProducts = products.filter((p: any) => p.id !== id);
-  writeDb(PRODUCTS_FILE, updatedProducts);
-  products = updatedProducts;
+app.delete('/api/products/:id', requireAdmin, async (req, res) => {
+  await store.deleteProduct(req.params.id);
   res.json({ success: true });
 });
 
 // 2. SALES
-app.get('/api/sales', (req, res) => {
-  sales = readDb(SALES_FILE, []);
-  res.json(sales);
+app.get('/api/sales', async (req, res) => {
+  res.json(await store.listSales());
 });
 
 // 3. CHECKOUT (Handles QR Payment and registers sales)
 //
 // Cash and QR/PromptPay are handled differently on purpose: cash is paid at the
-// counter the instant checkout is triggered, so it's safe to deduct stock and
-// log the sale right away. QR payment is NOT confirmed yet at this point — the
-// customer has only just been shown the QR code — so stock is left untouched
-// and the order is held as "pending" until /api/checkout/confirm is called.
-// (Previously this endpoint deducted stock and logged the sale for both
-// payment methods immediately, so a customer who opened the QR modal and never
-// actually paid still left behind a "completed" sale and reduced stock.)
-app.post('/api/checkout', (req, res) => {
+// counter the instant checkout is triggered, so stock is deducted and the sale
+// logged right away (in one database transaction). QR payment is NOT confirmed
+// yet at this point — the customer has only just been shown the QR code — so
+// stock is left untouched and the order is held as "pending" until
+// /api/checkout/confirm is called.
+app.post('/api/checkout', async (req, res) => {
   const { items, paymentMethod } = req.body; // Array of { productId, quantity }
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'Cart must not be empty.' });
   }
 
-  products = readDb(PRODUCTS_FILE, initialProducts);
-
-  let total = 0;
-  const itemsSold = [];
-  const stockShortages = [];
-
-  // Verify stock levels first to prevent negative stock
-  for (const item of items) {
-    const prod = products.find((p: any) => p.id === item.productId);
-    if (!prod) {
-      return res.status(404).json({ error: `ไม่พบสินค้า ID: ${item.productId}` });
-    }
-    if (prod.stock < item.quantity) {
-      stockShortages.push({ name: prod.name, requested: item.quantity, available: prod.stock });
-    }
-  }
-
-  if (stockShortages.length > 0) {
-    return res.status(400).json({
-      error: 'บางสินค้ามีสต็อกไม่เพียงพอสําหรับการสั่งซื้อ',
-      details: stockShortages
-    });
-  }
-
-  // Price the order (use promo price if available). Stock is not touched here.
-  for (const item of items) {
-    const prod = products.find((p: any) => p.id === item.productId)!;
-    const actualPrice = prod.promoPrice !== undefined ? prod.promoPrice : prod.price;
-    const lineTotal = actualPrice * item.quantity;
-    total += lineTotal;
-
-    itemsSold.push({
-      productId: prod.id,
-      name: prod.name,
-      quantity: item.quantity,
-      price: actualPrice,
-    });
+  const priced = await store.priceCart(items);
+  if (priced.ok === false) {
+    return res.status(priced.status).json({ error: priced.error, details: priced.details });
   }
 
   const method = paymentMethod || 'promptpay';
 
   if (method === 'cash') {
-    // Cash is paid immediately at the counter: commit right away.
-    products = readDb(PRODUCTS_FILE, initialProducts);
-    for (const item of items) {
-      const prod = products.find((p: any) => p.id === item.productId)!;
-      prod.stock -= item.quantity;
+    const result = await store.completeSale(priced.items, priced.total, method);
+    if (result.ok === false) {
+      return res.status(result.status).json({ error: result.error, details: result.details });
     }
-    writeDb(PRODUCTS_FILE, products);
-    checkLowStockAlerts();
-
-    sales = readDb(SALES_FILE, []);
-    const newSale = {
-      id: `sale_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-      timestamp: new Date().toISOString(),
-      items: itemsSold,
-      total,
-      paymentMethod: method,
-    };
-    sales.push(newSale);
-    writeDb(SALES_FILE, sales);
-
-    return res.json({ success: true, sale: newSale, pending: false });
+    return res.json({ success: true, sale: result.sale, pending: false });
   }
 
-  // QR / PromptPay: hold the order as pending. Stock is reserved conceptually
-  // (we already checked availability above) but not deducted, and no sale is
-  // recorded, until the customer confirms payment via /api/checkout/confirm.
-  pendingCheckouts = readDb(PENDING_CHECKOUTS_FILE, []);
-  const pendingCheckout = {
-    id: `pending_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-    timestamp: new Date().toISOString(),
-    items: itemsSold,
-    total,
-    paymentMethod: method,
-  };
-  pendingCheckouts.push(pendingCheckout);
-  writeDb(PENDING_CHECKOUTS_FILE, pendingCheckouts);
-
-  res.json({ success: true, sale: pendingCheckout, pending: true });
+  const pending = await store.createPending(priced.items, priced.total, method);
+  res.json({ success: true, sale: pending, pending: true });
 });
 
-// 3b. CONFIRM a pending QR/PromptPay checkout — actually deducts stock and
-// records the sale. Called once the customer confirms they've paid.
-app.post('/api/checkout/confirm', (req, res) => {
+// 3b. CONFIRM a pending QR/PromptPay checkout — deducts stock and records the
+// sale in one transaction. Called once the customer confirms they've paid.
+app.post('/api/checkout/confirm', async (req, res) => {
   const { id } = req.body;
   if (!id) {
     return res.status(400).json({ error: 'Missing checkout id.' });
   }
 
-  pendingCheckouts = readDb(PENDING_CHECKOUTS_FILE, []);
-  const idx = pendingCheckouts.findIndex((c: any) => c.id === id);
-  if (idx < 0) {
-    return res.status(404).json({ error: 'ไม่พบรายการที่รอชำระเงินนี้ อาจถูกยกเลิกหรือหมดอายุไปแล้ว กรุณาทำรายการใหม่' });
+  const result = await store.confirmPending(id);
+  if (result.ok === false) {
+    return res.status(result.status).json({ error: result.error, details: result.details });
   }
-  const pending = pendingCheckouts[idx];
-
-  // Re-check stock now, in case it changed while the customer was looking at
-  // the QR code (e.g. another customer bought the last unit in the meantime).
-  products = readDb(PRODUCTS_FILE, initialProducts);
-  const stockShortages: any[] = [];
-  for (const item of pending.items) {
-    const prod = products.find((p: any) => p.id === item.productId);
-    if (!prod || prod.stock < item.quantity) {
-      stockShortages.push({ name: item.name, requested: item.quantity, available: prod ? prod.stock : 0 });
-    }
-  }
-  if (stockShortages.length > 0) {
-    pendingCheckouts.splice(idx, 1);
-    writeDb(PENDING_CHECKOUTS_FILE, pendingCheckouts);
-    return res.status(400).json({
-      error: 'สต็อกสินค้าเปลี่ยนแปลงระหว่างรอชำระเงิน กรุณาทำรายการใหม่',
-      details: stockShortages,
-    });
-  }
-
-  for (const item of pending.items) {
-    const prod = products.find((p: any) => p.id === item.productId)!;
-    prod.stock -= item.quantity;
-  }
-  writeDb(PRODUCTS_FILE, products);
-  checkLowStockAlerts();
-
-  sales = readDb(SALES_FILE, []);
-  const newSale = {
-    id: `sale_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-    timestamp: new Date().toISOString(),
-    items: pending.items,
-    total: pending.total,
-    paymentMethod: pending.paymentMethod,
-  };
-  sales.push(newSale);
-  writeDb(SALES_FILE, sales);
-
-  pendingCheckouts.splice(idx, 1);
-  writeDb(PENDING_CHECKOUTS_FILE, pendingCheckouts);
-
-  res.json({ success: true, sale: newSale });
+  res.json({ success: true, sale: result.sale });
 });
 
 // 3c. CANCEL a pending QR/PromptPay checkout (e.g. the customer closed the
-// modal without paying). Stock was never deducted for a pending checkout, so
-// this just cleans up the pending record.
-app.post('/api/checkout/cancel', (req, res) => {
+// modal without paying). Stock was never deducted for a pending checkout.
+app.post('/api/checkout/cancel', async (req, res) => {
   const { id } = req.body;
   if (!id) {
     return res.status(400).json({ error: 'Missing checkout id.' });
   }
-  pendingCheckouts = readDb(PENDING_CHECKOUTS_FILE, []);
-  pendingCheckouts = pendingCheckouts.filter((c: any) => c.id !== id);
-  writeDb(PENDING_CHECKOUTS_FILE, pendingCheckouts);
+  await store.cancelPending(id);
   res.json({ success: true });
 });
 
 // 4. ALERTS
-app.get('/api/alerts', (req, res) => {
-  alerts = readDb(ALERTS_FILE, []);
-  res.json(alerts);
+app.get('/api/alerts', async (req, res) => {
+  res.json(await store.listAlerts());
 });
 
-app.post('/api/alerts/resolve', requireAdmin, (req, res) => {
-  const { id } = req.body;
-  alerts = readDb(ALERTS_FILE, []);
-  const alertIndex = alerts.findIndex((a: any) => a.id === id);
-  if (alertIndex >= 0) {
-    alerts[alertIndex].resolved = true;
-    writeDb(ALERTS_FILE, alerts);
+app.post('/api/alerts/resolve', requireAdmin, async (req, res) => {
+  if (await store.resolveAlert(req.body.id)) {
     return res.json({ success: true });
   }
   res.status(404).json({ error: 'Alert not found' });
@@ -482,7 +188,7 @@ app.post('/api/chat', async (req, res) => {
   }
 
   try {
-    products = readDb(PRODUCTS_FILE, initialProducts);
+    const products = await store.listProducts();
 
     // Filter active promotions
     const promos = products.filter((p: any) => p.promoPrice !== undefined && p.promoPrice < p.price);
@@ -619,6 +325,20 @@ Schema:
 
 // Setup Vite Dev server or production build delivery
 async function startServer() {
+  try {
+    store = await Store.open(CONNECTION_STRING);
+    const seeded = await store.seed(DATA_DIR);
+    console.log(
+      seeded === 'imported' ? 'Database: imported data/*.json into SQL Server'
+        : seeded === 'seeded' ? 'Database: created tables and demo products'
+        : 'Database: connected'
+    );
+  } catch (err: any) {
+    console.error('Cannot connect to SQL Server. Check that the SQL Server service is running and MSSQL_CONNECTION_STRING in .env.');
+    console.error(err?.message ?? err);
+    process.exit(1);
+  }
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -633,6 +353,13 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  // Last: turns thrown / rejected errors into a JSON 500 instead of crashing or an HTML page.
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error(`${req.method} ${req.path} failed:`, err?.message ?? err);
+    if (res.headersSent) return next(err);
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดของฐานข้อมูล กรุณาลองใหม่อีกครั้ง' });
+  });
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`grocery-server: Grocery AI Backend running on port ${PORT}`);
