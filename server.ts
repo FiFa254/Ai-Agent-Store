@@ -327,10 +327,11 @@ Schema:
 async function startServer() {
   try {
     store = await Store.open(CONNECTION_STRING);
-    const seeded = await store.seed(DATA_DIR);
+    const seeded = await store.seed({ legacyJsonDir: DATA_DIR, demo: process.env.SEED_DEMO_DATA === 'true' });
     console.log(
       seeded === 'imported' ? 'Database: imported data/*.json into SQL Server'
-        : seeded === 'seeded' ? 'Database: created tables and demo products'
+        : seeded === 'seeded' ? 'Database: added demo products (SEED_DEMO_DATA=true)'
+        : seeded === 'empty' ? 'Database: no products yet - add them in the Admin Panel'
         : 'Database: connected'
     );
   } catch (err: any) {

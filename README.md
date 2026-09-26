@@ -26,7 +26,7 @@ Manual: `npm install`, `npm run build`, `npm start` (or `npm run dev` for hot re
 | `MSSQL_CONNECTION_STRING` | `Driver={ODBC Driver 17 for SQL Server};Server=localhost;Database=GroceryAI;Trusted_Connection=yes;` |
 
 - On start the server creates the `GroceryAI` database and its tables if they do not exist (Windows login, no password).
-- First start with an empty database: imports the old `data/*.json` files if present, otherwise inserts 10 demo products.
+- First start with an empty database: imports the old `data/*.json` files if present; otherwise the store starts empty (add products in the Admin Panel). Set `SEED_DEMO_DATA=true` to insert 10 demo products instead.
 - Tables: `Products`, `Sales` + `SaleItems`, `PendingCheckouts` + `PendingCheckoutItems`, `StockAlerts`.
 - Stock deduction and the sale record are written in one transaction; stock can never go below zero.
 - Code: `server/db.ts` (connection), `server/store.ts` (schema and queries).
