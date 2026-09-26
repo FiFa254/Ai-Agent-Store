@@ -48,7 +48,7 @@ const ai = new GoogleGenAI({
 const app = express();
 app.use(express.json());
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Persistent Database Files
 const DATA_DIR = path.join(process.cwd(), 'data');
