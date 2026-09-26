@@ -12,6 +12,18 @@ if errorlevel 1 (
     exit /b 1
 )
 
+rem Products, sales and alerts are stored in SQL Server (database GroceryAI, see .env.example).
+sc query MSSQLSERVER 2>nul | find "RUNNING" >nul
+if errorlevel 1 (
+    sc query "MSSQL$SQLEXPRESS" 2>nul | find "RUNNING" >nul
+    if errorlevel 1 (
+        echo [!] SQL Server is not running. Start the "SQL Server ^(MSSQLSERVER^)" service in services.msc,
+        echo     or set MSSQL_CONNECTION_STRING in .env to another server.
+        pause
+        exit /b 1
+    )
+)
+
 if not exist .env (
     copy .env.example .env >nul
     echo [!] Created .env - set GEMINI_API_KEY ^(for the AI chat^) and ADMIN_PASSWORD, save, and close Notepad.
