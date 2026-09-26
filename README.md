@@ -1,59 +1,82 @@
-# GrocerAI — Ai-Agent-Store
+# GrocerAI — grocery storefront, POS and back office
 
-Store management system with a Gemini AI assistant for a Thai grocery shop.
-React + TypeScript frontend, Express backend, **SQL Server** database.
+A grocery store system for a small Thai shop: customers order online (with a Gemini shopping assistant and
+real PromptPay QR payment), staff sell at the counter with a POS, and managers run products, stock and reports.
+Everything is stored in **SQL Server**.
 
 ## Features
 
-- Customer store with cart, cash and QR / PromptPay checkout
-  (QR orders deduct stock only after payment is confirmed)
-- AI assistant (Gemini) that recommends products and promotions
-- Admin panel (password protected): products, stock, sales, low-stock alerts
+**Storefront** (`/`, no login)
+- Product catalog by category, search, promotions, live availability
+- AI assistant "พี่ชำใจดี" (Gemini): answers about stock and promotions and adds items to the cart; simple product search when no API key is set
+- Cart kept on the device; order with name + phone; stock is reserved for the order
+- Order page with a **real PromptPay QR** (EMVCo, CRC-checked) and live status; unpaid orders expire and release stock
+
+**Back office** (`/staff`, login required)
+
+| Area | Cashier | Manager | Admin |
+|---|:-:|:-:|:-:|
+| Dashboard, POS (barcode/SKU scan, cash with change, PromptPay QR), receipts + 80 mm printing | ✔ | ✔ | ✔ |
+| Online order queue: confirm payment / cancel | ✔ | ✔ | ✔ |
+| Products, categories, stock in/adjust with full movement history | | ✔ | ✔ |
+| Sales reports (daily, top products, categories, channels) + CSV export for Excel | | ✔ | ✔ |
+| Users and roles, store settings (PromptPay, VAT, receipt), audit log | | | ✔ |
+
+- First run: `/staff/setup` creates the first admin (no default passwords)
+- Passwords hashed with scrypt; 5 wrong passwords lock the account for 15 minutes; sessions in `httpOnly` cookies
+- Every change and every sign-in is written to the audit log
+- Receipts: daily running numbers (`R260926-0001`), VAT extracted from VAT-inclusive prices
 
 ## Run on Windows
 
-**Prerequisites:** Node.js 22.5+, SQL Server (Developer / Express, running locally), ODBC Driver 17 or 18 for SQL Server.
+**Prerequisites:** Node.js 22+, SQL Server (Developer / Express) running locally, ODBC Driver 17 or 18 for SQL Server.
 
-Double-click **`start.bat`**. On first run it creates `.env` from `.env.example` (set `GEMINI_API_KEY` and
-`ADMIN_PASSWORD`), installs packages, builds, and opens <http://localhost:3000>.
+Double-click **`start.bat`**. It installs packages on the first run, builds, starts the server and opens
+<http://localhost:3000/staff>. The storefront is at <http://localhost:3000>.
 
-Manual: `npm install`, `npm run build`, `npm start` (or `npm run dev` for hot reload).
+The database `GroceryAI` and all tables are created automatically (Windows login, no password).
 
-## Database
+## Configuration (`.env`)
 
-| Setting | Default |
-|---|---|
-| `MSSQL_CONNECTION_STRING` | `Driver={ODBC Driver 17 for SQL Server};Server=localhost;Database=GroceryAI;Trusted_Connection=yes;` |
+| Key | Default | Purpose |
+|---|---|---|
+| `PORT` | `3000` | Web port |
+| `MSSQL_CONNECTION_STRING` | `Driver={ODBC Driver 17 for SQL Server};Server=localhost;Database=GroceryAI;Trusted_Connection=yes;` | SQL Server database |
+| `GEMINI_API_KEY` | — | Enables the AI assistant |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model |
+| `SESSION_HOURS` | `12` | Staff session length (sliding) |
 
-- On start the server creates the `GroceryAI` database and its tables if they do not exist (Windows login, no password).
-- First start with an empty database: imports the old `data/*.json` files if present; otherwise the store starts empty (add products in the Admin Panel). Set `SEED_DEMO_DATA=true` to insert 10 demo products instead.
-- Tables: `Products`, `Sales` + `SaleItems`, `PendingCheckouts` + `PendingCheckoutItems`, `StockAlerts`.
-- Stock deduction and the sale record are written in one transaction; stock can never go below zero.
-- Code: `server/db.ts` (connection), `server/store.ts` (schema and queries).
+Store name, address, tax id, PromptPay number, VAT rate and order hold time are set in **ตั้งค่าร้าน** (admin).
 
-## API
+## Project structure
 
-| Method | Route | Auth | Purpose |
-|---|---|---|---|
-| GET | `/api/products` | — | List products |
-| POST | `/api/products` | admin | Create or update a product |
-| DELETE | `/api/products/:id` | admin | Delete a product |
-| GET | `/api/sales` | — | Sales history with line items |
-| POST | `/api/checkout` | — | Cash: complete sale. QR: create pending order |
-| POST | `/api/checkout/confirm` | — | Confirm a pending QR order |
-| POST | `/api/checkout/cancel` | — | Cancel a pending QR order |
-| GET | `/api/alerts` | — | Low-stock alerts |
-| POST | `/api/alerts/resolve` | admin | Mark an alert resolved |
-| POST | `/api/admin/verify` | admin | Check the admin password |
-| POST | `/api/chat` | — | AI assistant |
-
-Admin routes need the `x-admin-password` header matching `ADMIN_PASSWORD`.
-
-## Tests
-
-```bash
-npm test
+```
+shared/src/        zod request schemas, API types, money helpers (used by server and client)
+server/src/
+  app.ts           express app (helmet, sessions, origin check, routes, error handler)
+  index.ts         start: config, database + migrations, background jobs, listen
+  config.ts        environment (validated)
+  db/              connection pool + transactions (msnodesqlv8), SQL migrations
+  middleware/      auth (session → req.user, requireRole), http helpers
+  modules/         auth, users, settings, catalog, inventory, sales (POS/receipts),
+                   orders (online), reports, chat (Gemini), audit
+  lib/             password (scrypt), audit, PromptPay payload + QR, time (Bangkok days)
+server/tests/      integration tests against a throwaway GroceryAI_Test database
+client/src/
+  app/router.tsx   routes (public shop, staff area with role guards)
+  layouts/         PublicLayout, StaffLayout (sidebar by role)
+  pages/           shop/* and staff/* pages
+  features/        auth, cart, receipt view
+  components/ui/   small UI kit (Tailwind 4 tokens in index.css)
 ```
 
-Runs against a throwaway `GroceryAI_Test` database on the local SQL Server
-(override with `MSSQL_TEST_CONNECTION_STRING`).
+## Development
+
+```bash
+npm install
+npm run dev              # API on :3000 (tsx watch)
+npm run dev -w client    # UI on :5173 (proxies /api to :3000)
+npm test                 # server integration tests (needs local SQL Server)
+npm run lint             # TypeScript strict checks for shared, server, client
+npm run build            # client/dist + server/dist
+```

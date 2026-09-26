@@ -1,9 +1,8 @@
 @echo off
-rem Double-click to run Ai-Agent-Store locally at http://localhost:3000
+rem Double-click to run GrocerAI (storefront + staff back office) at http://localhost:3000
 setlocal
 cd /d "%~dp0"
-title Ai-Agent-Store - http://localhost:3000
-set PORT=3000
+title GrocerAI - http://localhost:3000
 
 where node >nul 2>nul
 if errorlevel 1 (
@@ -12,7 +11,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-rem Products, sales and alerts are stored in SQL Server (database GroceryAI, see .env.example).
+rem All data is stored in SQL Server (database GroceryAI, see .env.example).
 sc query MSSQLSERVER 2>nul | find "RUNNING" >nul
 if errorlevel 1 (
     sc query "MSSQL$SQLEXPRESS" 2>nul | find "RUNNING" >nul
@@ -26,7 +25,7 @@ if errorlevel 1 (
 
 if not exist .env (
     copy .env.example .env >nul
-    echo [!] Created .env - set GEMINI_API_KEY ^(for the AI chat^) and ADMIN_PASSWORD, save, and close Notepad.
+    echo [!] Created .env - optionally set GEMINI_API_KEY ^(AI assistant^), save, and close Notepad.
     start /wait notepad .env
 )
 
@@ -41,12 +40,13 @@ call npm run build
 if errorlevel 1 goto :fail
 
 set NODE_ENV=production
-start "" cmd /c "timeout /t 3 >nul & start http://localhost:%PORT%"
+start "" cmd /c "timeout /t 4 >nul & start http://localhost:3000/staff"
 echo.
-echo Ai-Agent-Store is running at http://localhost:%PORT%
+echo GrocerAI: storefront http://localhost:3000  -  staff back office http://localhost:3000/staff
 echo Close this window to stop it.
 echo.
-node dist\server.cjs
+cd server
+node --enable-source-maps dist\index.cjs
 goto :eof
 
 :fail

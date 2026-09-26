@@ -9,3 +9,7 @@ coverage/
 
 # Local JSON database written at runtime
 data/
+
+# Build output
+server/dist/
+client/dist/
