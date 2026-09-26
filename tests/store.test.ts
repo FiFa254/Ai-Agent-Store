@@ -41,7 +41,7 @@ beforeEach(async () => {
     'DELETE FROM dbo.SaleItems; DELETE FROM dbo.Sales; DELETE FROM dbo.PendingCheckoutItems; ' +
       'DELETE FROM dbo.PendingCheckouts; DELETE FROM dbo.StockAlerts; DELETE FROM dbo.Products;'
   );
-  await store.seed();
+  await store.seed({ demo: true });
 });
 
 const stockOf = async (id: string) => (await store.getProduct(id))!.stock;
@@ -58,8 +58,14 @@ describe('seed', () => {
     const open = (await store.listAlerts()).filter((a) => !a.resolved).map((a) => a.productId).sort();
     assert.deepEqual(open, ['prod_2', 'prod_6']);
 
-    assert.equal(await store.seed(), 'existing');
+    assert.equal(await store.seed({ demo: true }), 'existing');
     assert.equal((await store.listProducts()).length, 10);
+  });
+
+  test('starts empty unless demo data is requested', async () => {
+    await store.db.run('DELETE FROM dbo.StockAlerts; DELETE FROM dbo.Products;');
+    assert.equal(await store.seed(), 'empty');
+    assert.equal((await store.listProducts()).length, 0);
   });
 
   test('imports legacy data/*.json when the database is empty', async () => {
@@ -73,7 +79,7 @@ describe('seed', () => {
         items: [{ productId: 'old_1', name: 'สินค้าเก่า', quantity: 2, price: 10 }] },
     ]));
 
-    assert.equal(await store.seed(dir), 'imported');
+    assert.equal(await store.seed({ legacyJsonDir: dir }), 'imported');
     assert.deepEqual((await store.listProducts()).map((p) => p.id), ['old_1']);
     const sales = await store.listSales();
     assert.equal(sales.length, 1);
@@ -120,9 +126,9 @@ describe('checkout', () => {
     const zero = await store.priceCart([{ productId: 'prod_1', quantity: 0 }]);
     assert.equal(zero.ok, false);
     const missing = await store.priceCart([{ productId: 'nope', quantity: 1 }]);
-    assert.ok(!missing.ok && missing.status === 404);
+    assert.ok(missing.ok === false && missing.status === 404);
     const tooMany = await store.priceCart([{ productId: 'prod_6', quantity: 3 }]);
-    assert.ok(!tooMany.ok && tooMany.details![0].available === 2);
+    assert.ok(tooMany.ok === false && tooMany.details![0].available === 2);
   });
 
   test('cash sale deducts stock and records the sale in one step', async () => {
@@ -154,7 +160,7 @@ describe('checkout', () => {
     assert.equal((await store.listSales()).length, 1);
 
     const again = await store.confirmPending(pending.id);
-    assert.ok(!again.ok && again.status === 404);
+    assert.ok(again.ok === false && again.status === 404);
     assert.equal(await stockOf('prod_3'), 30);
   });
 
@@ -168,7 +174,7 @@ describe('checkout', () => {
     await store.completeSale(cash.items, cash.total, 'cash');
 
     const result = await store.confirmPending(pending.id);
-    assert.ok(!result.ok && result.status === 400 && result.details![0].available === 1);
+    assert.ok(result.ok === false && result.status === 400 && result.details![0].available === 1);
     assert.equal(await stockOf('prod_6'), 1);
     assert.equal(await store.getPending(pending.id), undefined);
   });

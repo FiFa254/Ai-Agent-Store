@@ -137,10 +137,12 @@ export class Store {
   }
 
   /**
-   * First start: import the old data/*.json files if they exist, otherwise insert the demo products.
-   * Does nothing when the database already has products.
+   * First start with an empty database: import the old data/*.json files if they exist.
+   * Demo products are inserted only when asked for (SEED_DEMO_DATA=true); otherwise the store starts empty
+   * and products are added in the Admin Panel. Does nothing when the database already has products.
    */
-  async seed(legacyJsonDir?: string): Promise<'existing' | 'imported' | 'seeded'> {
+  async seed(options: { legacyJsonDir?: string; demo?: boolean } = {}): Promise<'existing' | 'imported' | 'seeded' | 'empty'> {
+    const legacyJsonDir = options.legacyJsonDir;
     const { n } = (await this.db.queryOne<{ n: number }>('SELECT COUNT(*) AS n FROM dbo.Products'))!;
     if (n > 0) {
       return 'existing';
@@ -158,6 +160,9 @@ export class Store {
 
     const legacyProducts = readJson('products.json');
     const imported = legacyProducts.length > 0;
+    if (!imported && !options.demo) {
+      return 'empty';
+    }
 
     await this.db.transaction(async (tx) => {
       for (const p of imported ? legacyProducts : initialProducts) {
