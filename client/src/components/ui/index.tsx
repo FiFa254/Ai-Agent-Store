@@ -13,6 +13,15 @@ const VARIANTS: Record<Variant, string> = {
   ghost: 'text-ink hover:bg-forest/5 disabled:text-muted',
 };
 
+type Size = 'sm' | 'md' | 'lg' | 'icon' | 'icon-lg';
+const SIZES: Record<Size, string> = {
+  sm: 'h-8 px-3.5 text-xs',
+  md: 'h-10 px-5 text-sm',
+  lg: 'h-12 px-6 text-base',
+  icon: 'size-8 shrink-0',
+  'icon-lg': 'size-11 shrink-0',
+};
+
 export function Button({
   variant = 'primary',
   size = 'md',
@@ -20,16 +29,14 @@ export function Button({
   className,
   children,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' | 'lg'; loading?: boolean }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size; loading?: boolean }) {
   return (
     <button
       {...props}
       disabled={props.disabled || loading}
       className={cx(
         'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full font-semibold transition-[background-color,border-color,color,transform] duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:active:scale-100 cursor-pointer',
-        size === 'sm' && 'h-8 px-3.5 text-xs',
-        size === 'md' && 'h-10 px-5 text-sm',
-        size === 'lg' && 'h-12 px-6 text-base',
+        SIZES[size],
         VARIANTS[variant],
         className
       )}

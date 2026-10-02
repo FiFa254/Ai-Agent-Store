@@ -232,7 +232,7 @@ function ChatPanel({ products }: { products: CatalogProduct[] }) {
             className="h-11 w-full rounded-full border border-line-strong bg-surface px-4 text-sm focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-lime/40"
           />
         </label>
-        <Button type="submit" variant="accent" className="size-11 px-0" aria-label="ส่ง" disabled={!input.trim()} loading={send.isPending}>
+        <Button type="submit" variant="accent" size="icon-lg" aria-label="ส่ง" disabled={!input.trim()} loading={send.isPending}>
           {!send.isPending && <Send className="size-4" aria-hidden />}
         </Button>
       </form>
