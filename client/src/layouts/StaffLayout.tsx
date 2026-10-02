@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { BarChart3, ClipboardList, History, LayoutDashboard, LogOut, Menu, Package, Receipt, Settings, ShieldCheck, ShoppingCart, Store, UserCircle, Users, Warehouse } from 'lucide-react';
+import { BarChart3, ClipboardList, History, LayoutDashboard, Leaf, LogOut, Menu, Package, Receipt, Settings, ShieldCheck, ShoppingCart, Store, Users, Warehouse } from 'lucide-react';
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import type { Role } from '@shared/schemas';
@@ -35,7 +35,7 @@ export function StaffLayout() {
   const user = me.data!;
 
   const nav = (
-    <nav className="flex flex-col gap-1 p-3">
+    <nav className="flex flex-col gap-1 px-3 py-4" aria-label="เมนูหลังร้าน">
       {NAV.filter((n) => !n.roles || can(user, ...n.roles)).map((n) => (
         <NavLink
           key={n.to}
@@ -43,13 +43,16 @@ export function StaffLayout() {
           end={n.end}
           onClick={() => setOpen(false)}
           className={({ isActive }) =>
-            cx('flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium', isActive ? 'bg-brand-700 text-white' : 'text-slate-300 hover:bg-white/10 hover:text-white')
+            cx(
+              'flex items-center gap-3 rounded-full px-4 py-2.5 text-sm font-medium transition-colors',
+              isActive ? 'bg-lime font-semibold text-lime-ink' : 'text-white/70 hover:bg-white/10 hover:text-white'
+            )
           }
         >
           <n.icon className="size-4" aria-hidden />
           <span className="flex-1">{n.label}</span>
           {n.to === '/staff/orders' && (awaiting.data?.length ?? 0) > 0 && (
-            <span className="rounded-full bg-amber-400 px-2 text-xs font-bold text-ink">{awaiting.data!.length}</span>
+            <span className="min-w-6 rounded-full bg-amber-400 px-1.5 py-0.5 text-center text-xs font-bold text-ink tabular-nums">{awaiting.data!.length}</span>
           )}
         </NavLink>
       ))}
@@ -58,17 +61,20 @@ export function StaffLayout() {
 
   return (
     <div className="min-h-screen lg:flex">
-      <aside className={cx('no-print fixed inset-y-0 left-0 z-40 w-64 flex-col bg-ink lg:static lg:flex', open ? 'flex' : 'hidden')}>
-        <div className="flex h-16 items-center gap-2.5 border-b border-white/10 px-5 text-white">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-brand-600">
-            <Store className="size-4" aria-hidden />
+      <aside className={cx('no-print fixed inset-y-0 left-0 z-40 w-68 flex-col bg-forest lg:sticky lg:top-0 lg:h-screen lg:flex', open ? 'flex' : 'hidden')}>
+        <div className="flex h-18 items-center gap-2.5 px-6 text-white">
+          <span className="flex size-9 items-center justify-center rounded-full bg-lime text-lime-ink">
+            <Leaf className="size-[18px]" aria-hidden />
           </span>
-          <span className="font-bold">GrocerAI หลังร้าน</span>
+          <span className="font-display text-lg font-bold tracking-tight">GrocerAI</span>
+          <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/70">หลังร้าน</span>
         </div>
         <div className="flex-1 overflow-y-auto">{nav}</div>
-        <div className="border-t border-white/10 p-3 text-sm text-slate-300">
-          <NavLink to="/staff/account" className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-white/10">
-            <UserCircle className="size-5" aria-hidden />
+        <div className="space-y-1 p-3 text-sm text-white/70">
+          <NavLink to="/staff/account" className="flex items-center gap-3 rounded-2xl bg-white/5 px-3 py-2.5 hover:bg-white/10">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-forest-soft font-display font-bold text-lime" aria-hidden>
+              {user.displayName.trim().charAt(0)}
+            </span>
             <span className="min-w-0">
               <span className="block truncate font-medium text-white">{user.displayName}</span>
               <span className="flex items-center gap-1 text-xs">
@@ -76,24 +82,24 @@ export function StaffLayout() {
               </span>
             </span>
           </NavLink>
-          <a href="/" target="_blank" rel="noreferrer" className="mt-1 flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-white/10">
+          <a href="/" target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-full px-4 py-2 hover:bg-white/10 hover:text-white">
             <Store className="size-4" aria-hidden /> เปิดหน้าร้านออนไลน์
           </a>
           <button
             onClick={() => logout.mutate(undefined, { onSuccess: () => navigate('/staff/login') })}
-            className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-white/10 cursor-pointer"
+            className="flex w-full items-center gap-3 rounded-full px-4 py-2 text-left hover:bg-white/10 hover:text-white cursor-pointer"
           >
             <LogOut className="size-4" aria-hidden /> ออกจากระบบ
           </button>
         </div>
       </aside>
-      {open && <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setOpen(false)} />}
+      {open && <div className="fixed inset-0 z-30 bg-forest/40 lg:hidden" onClick={() => setOpen(false)} />}
       <div className="min-w-0 flex-1">
-        <div className="no-print flex h-14 items-center border-b border-line bg-white px-4 lg:hidden">
-          <button onClick={() => setOpen(true)} className="rounded-md p-2 hover:bg-slate-100 cursor-pointer" aria-label="เมนู">
+        <div className="no-print sticky top-0 z-20 flex h-14 items-center border-b border-line bg-canvas/90 px-4 backdrop-blur-md lg:hidden">
+          <button onClick={() => setOpen(true)} className="rounded-full p-2 hover:bg-forest/5 cursor-pointer" aria-label="เมนู">
             <Menu className="size-5" />
           </button>
-          <span className="ml-2 font-semibold">GrocerAI หลังร้าน</span>
+          <span className="ml-2 font-display font-semibold">GrocerAI หลังร้าน</span>
         </div>
         <main className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
           <Outlet />
