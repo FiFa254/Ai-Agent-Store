@@ -22,32 +22,32 @@ export function ShopPage() {
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return (catalog.data ?? []).filter((p) => (categoryId === null || p.categoryId === categoryId) && (!q || p.name.toLowerCase().includes(q)));
+    return (catalog.data ?? [])
+      .filter((p) => (categoryId === null || p.categoryId === categoryId) && (!q || p.name.toLowerCase().includes(q)))
+      .sort((a, b) => Number(a.available <= 0) - Number(b.available <= 0));
   }, [catalog.data, categoryId, search]);
   const promoCount = useMemo(() => (catalog.data ?? []).filter((p) => p.promoPrice !== null && p.available > 0).length, [catalog.data]);
 
   return (
     <div className="space-y-8">
-      <section aria-labelledby="shop-hero" className="relative overflow-hidden rounded-[1.75rem] bg-forest px-6 py-9 text-white sm:px-10 sm:py-12">
-        <div aria-hidden className="pointer-events-none absolute -right-16 -top-24 size-72 rounded-full bg-lime/15" />
-        <div aria-hidden className="pointer-events-none absolute -bottom-28 right-24 size-56 rounded-full bg-brand-500/25" />
-        <div className="relative max-w-2xl">
-          <h1 id="shop-hero" className="text-balance font-display text-3xl font-bold leading-tight tracking-tight sm:text-[2.6rem]">
+      <section aria-labelledby="shop-hero" className="rounded-[1.75rem] bg-forest px-5 py-6 text-white sm:px-8 sm:py-8">
+        <div className="max-w-2xl">
+          <h1 id="shop-hero" className="text-balance font-display text-2xl font-bold leading-tight tracking-tight sm:text-3xl">
             {settings.data?.storeName ?? 'GrocerAI'}
           </h1>
-          <p className="mt-3 max-w-xl text-pretty text-base text-white/75">เลือกของใช้ประจำบ้านได้เลย หรือบอกผู้ช่วย AI ว่าอยากได้อะไร แล้วให้หยิบใส่ตะกร้าให้</p>
-          <label className="relative mt-7 block max-w-xl">
+          <p className="mt-2 max-w-xl text-pretty text-sm text-white/75 sm:text-base">เลือกของใช้ประจำบ้านได้เลย หรือบอกผู้ช่วย AI ว่าอยากได้อะไร แล้วให้หยิบใส่ตะกร้าให้</p>
+          <label className="relative mt-5 block max-w-xl">
             <span className="sr-only">ค้นหาสินค้า</span>
             <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted" aria-hidden />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="ค้นหาสินค้า เช่น นมสด ข้าวหอมมะลิ"
-              className="h-13 w-full rounded-full border-0 bg-white pl-12 pr-4 text-base text-ink shadow-pop placeholder:text-muted/80 focus:outline-none focus:ring-4 focus:ring-lime/60"
+              className="h-12 w-full rounded-full border-0 bg-white pl-12 pr-4 text-base text-ink shadow-pop placeholder:text-muted/80 focus:outline-none focus:ring-4 focus:ring-lime/60"
             />
           </label>
           {promoCount > 0 && (
-            <p className="mt-5 inline-flex items-center gap-2 rounded-full bg-lime px-3.5 py-1.5 text-sm font-semibold text-lime-ink">
+            <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-lime px-3.5 py-1.5 text-sm font-semibold text-lime-ink">
               <Tag className="size-4" aria-hidden /> สินค้าโปรโมชัน {promoCount} รายการ
             </p>
           )}
@@ -105,11 +105,12 @@ function ProductCard({ product: p }: { product: CatalogProduct }) {
   const soldOut = p.available <= 0;
   return (
     <Card className={cx('flex flex-col p-2.5 transition-shadow hover:shadow-pop sm:p-3', soldOut && 'opacity-75')}>
-      <div className="relative mb-3 flex aspect-[4/3] items-center justify-center rounded-2xl bg-subtle text-brand-600">
-        <Package className="size-10 stroke-[1.5]" aria-hidden />
+      <div className="relative mb-3 flex h-20 items-center justify-center rounded-2xl bg-subtle text-brand-600 sm:h-24">
+        <Package className="size-8 stroke-[1.5]" aria-hidden />
         <div className="absolute left-2 top-2 flex flex-wrap gap-1">
-          {p.promoPrice !== null && <Badge tone="lime">โปรโมชัน</Badge>}
-          {soldOut ? <Badge tone="red">สินค้าหมด</Badge> : p.available <= 5 && <Badge tone="amber">เหลือ {p.available}</Badge>}
+          {soldOut && <Badge tone="red">สินค้าหมด</Badge>}
+          {!soldOut && p.promoPrice !== null && <Badge tone="lime">โปรโมชัน</Badge>}
+          {!soldOut && p.available <= 5 && <Badge tone="amber">เหลือ {p.available}</Badge>}
         </div>
       </div>
       <div className="flex flex-1 flex-col px-1 pb-1">
