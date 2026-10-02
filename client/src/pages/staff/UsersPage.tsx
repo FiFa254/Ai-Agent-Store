@@ -36,7 +36,7 @@ export function UsersPage() {
           </Button>
         }
       />
-      <Card>
+      <Card className="overflow-hidden">
         {users.isLoading ? (
           <Spinner />
         ) : users.error ? (
@@ -55,7 +55,7 @@ export function UsersPage() {
               </thead>
               <tbody>
                 {users.data!.map((u) => (
-                  <tr key={u.id} className={u.isActive ? '' : 'bg-slate-50 text-muted'}>
+                  <tr key={u.id} className={u.isActive ? '' : 'bg-subtle text-muted'}>
                     <td className={tableClass.td}>
                       <p className="font-medium">{u.displayName}</p>
                       <p className="text-xs text-muted">{u.username}</p>

@@ -36,7 +36,7 @@ export function SettingsPage() {
       <PageHeader title="ตั้งค่าร้าน" description="ข้อมูลนี้แสดงบนหน้าร้านออนไลน์และใบเสร็จ" />
       <form onSubmit={submit} className="grid gap-6 lg:grid-cols-2">
         <Card className="space-y-4 p-5">
-          <h2 className="font-semibold">ข้อมูลร้าน</h2>
+          <h2 className="font-display text-lg font-semibold">ข้อมูลร้าน</h2>
           <Input label="ชื่อร้าน" required value={f.storeName} error={err.storeName} onChange={set('storeName')} />
           <Textarea label="ที่อยู่" value={f.storeAddress} error={err.storeAddress} onChange={set('storeAddress')} />
           <Input label="เบอร์โทร" value={f.storePhone} error={err.storePhone} onChange={set('storePhone')} />
@@ -44,7 +44,7 @@ export function SettingsPage() {
           <Textarea label="ข้อความท้ายใบเสร็จ" value={f.receiptFooter} error={err.receiptFooter} onChange={set('receiptFooter')} />
         </Card>
         <Card className="space-y-4 p-5">
-          <h2 className="font-semibold">การชำระเงินและภาษี</h2>
+          <h2 className="font-display text-lg font-semibold">การชำระเงินและภาษี</h2>
           <Input
             label="หมายเลขพร้อมเพย์ของร้าน"
             value={f.promptPayId}

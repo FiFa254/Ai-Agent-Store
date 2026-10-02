@@ -3,11 +3,18 @@ import { Check, ClipboardList, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Order, OrderStatus } from '@shared/types';
-import { Badge, Button, Card, EmptyState, ErrorBox, PageHeader, Select, Spinner, useToast } from '@/components/ui';
+import { Badge, Button, Card, EmptyState, ErrorBox, PageHeader, Spinner, cx, useToast } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { formatBaht, formatDateTime, ORDER_STATUS_LABELS } from '@/lib/format';
 
 const TONES: Record<OrderStatus, 'amber' | 'green' | 'red' | 'slate'> = { awaiting_payment: 'amber', paid: 'green', cancelled: 'red', expired: 'slate' };
+const STATUS_FILTERS: { value: OrderStatus | 'all'; label: string }[] = [
+  { value: 'awaiting_payment', label: 'รอชำระเงิน' },
+  { value: 'paid', label: 'ชำระแล้ว' },
+  { value: 'cancelled', label: 'ยกเลิก' },
+  { value: 'expired', label: 'หมดเวลา' },
+  { value: 'all', label: 'ทั้งหมด' },
+];
 
 export function OrdersPage() {
   const qc = useQueryClient();
@@ -38,19 +45,23 @@ export function OrdersPage() {
 
   return (
     <div>
-      <PageHeader
-        title="คำสั่งซื้อออนไลน์"
-        description="ตรวจสอบยอดเงินเข้าก่อนยืนยัน สินค้าถูกกันไว้จนกว่าจะชำระหรือหมดเวลา"
-        actions={
-          <Select aria-label="สถานะ" value={status} onChange={(e) => setStatus(e.target.value as OrderStatus | 'all')} className="w-44">
-            <option value="awaiting_payment">รอชำระเงิน</option>
-            <option value="paid">ชำระแล้ว</option>
-            <option value="cancelled">ยกเลิก</option>
-            <option value="expired">หมดเวลา</option>
-            <option value="all">ทั้งหมด</option>
-          </Select>
-        }
-      />
+      <PageHeader title="คำสั่งซื้อออนไลน์" description="ตรวจสอบยอดเงินเข้าก่อนยืนยัน สินค้าถูกกันไว้จนกว่าจะชำระหรือหมดเวลา" />
+      <div className="-mt-2 mb-6 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="สถานะ">
+        {STATUS_FILTERS.map((f) => (
+          <button
+            key={f.value}
+            type="button"
+            aria-pressed={status === f.value}
+            onClick={() => setStatus(f.value)}
+            className={cx(
+              'h-9 shrink-0 rounded-full border px-4 text-sm font-medium transition-colors cursor-pointer',
+              status === f.value ? 'border-forest bg-forest text-white' : 'border-line-strong bg-surface text-ink hover:border-forest/40'
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
       {orders.isLoading ? (
         <Spinner />
       ) : orders.error ? (
@@ -62,12 +73,12 @@ export function OrdersPage() {
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {orders.data!.map((o) => (
-            <Card key={o.id} className="p-5">
-              <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-lg font-bold">{o.orderNo}</p>
-                  <p className="text-sm text-muted">
-                    {o.customerName} · <a href={`tel:${o.customerPhone}`} className="underline">{o.customerPhone}</a>
+            <Card key={o.id} className="flex flex-col p-5">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-display text-lg font-bold tracking-tight">{o.orderNo}</p>
+                  <p className="mt-0.5 text-sm text-muted">
+                    {o.customerName} · <a href={`tel:${o.customerPhone}`} className="font-medium text-brand-700 underline underline-offset-2">{o.customerPhone}</a>
                   </p>
                   <p className="text-xs text-muted">
                     สั่ง {formatDateTime(o.createdAt)}
@@ -76,7 +87,7 @@ export function OrdersPage() {
                 </div>
                 <Badge tone={TONES[o.status]}>{ORDER_STATUS_LABELS[o.status]}</Badge>
               </div>
-              <ul className="mb-3 space-y-1 text-sm">
+              <ul className="mb-3 space-y-1.5 text-sm tabular-nums">
                 {o.items.map((i) => (
                   <li key={i.productId} className="flex justify-between">
                     <span>
@@ -86,9 +97,9 @@ export function OrdersPage() {
                   </li>
                 ))}
               </ul>
-              {o.note && <p className="mb-3 rounded-lg bg-slate-50 p-2 text-sm">หมายเหตุ: {o.note}</p>}
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
-                <span className="text-xl font-bold">{formatBaht(o.total)}</span>
+              {o.note && <p className="mb-3 rounded-xl bg-subtle px-3 py-2 text-sm ring-1 ring-line">หมายเหตุ: {o.note}</p>}
+              <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4">
+                <span className="font-display text-xl font-bold tabular-nums">{formatBaht(o.total)}</span>
                 {o.status === 'awaiting_payment' ? (
                   <div className="flex flex-wrap gap-2">
                     <Button variant="secondary" size="sm" loading={cancel.isPending && cancel.variables === o.orderNo} onClick={() => window.confirm(`ยกเลิก ${o.orderNo} และคืนสต็อก?`) && cancel.mutate(o.orderNo)}>

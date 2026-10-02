@@ -35,7 +35,7 @@ export function AuditPage() {
           ))}
         </Select>
       </Card>
-      <Card>
+      <Card className="overflow-hidden">
         {log.isLoading ? (
           <Spinner />
         ) : log.error ? (
@@ -60,9 +60,9 @@ export function AuditPage() {
                   {log.data!.items.map((a) => (
                     <tr key={a.id}>
                       <td className={`${tableClass.td} whitespace-nowrap`}>{formatDateTime(a.createdAt)}</td>
-                      <td className={tableClass.td}>{a.userName ?? 'ลูกค้า / ระบบ'}</td>
+                      <td className={`${tableClass.td} whitespace-nowrap`}>{a.userName ?? 'ลูกค้า / ระบบ'}</td>
                       <td className={tableClass.td}>
-                        <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">{a.action}</code>
+                        <code className="rounded-md bg-subtle px-1.5 py-0.5 font-mono text-xs ring-1 ring-line">{a.action}</code>
                       </td>
                       <td className={tableClass.td}>
                         {ENTITIES[a.entity] ?? a.entity}

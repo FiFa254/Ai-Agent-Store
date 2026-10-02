@@ -23,7 +23,7 @@ export function ReceiptsPage() {
         <Input label="ตั้งแต่วันที่" type="date" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value, page: 1 })} />
         <Input label="ถึงวันที่" type="date" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value, page: 1 })} />
       </Card>
-      <Card>
+      <Card className="overflow-hidden">
         {sales.isLoading ? (
           <Spinner />
         ) : sales.error ? (
@@ -46,7 +46,7 @@ export function ReceiptsPage() {
                 </thead>
                 <tbody>
                   {sales.data!.items.map((s) => (
-                    <tr key={s.id} className="hover:bg-slate-50">
+                    <tr key={s.id} className="hover:bg-subtle">
                       <td className={tableClass.td}>
                         <Link to={`/staff/receipts/${s.receiptNo}`} className="font-semibold text-brand-700 hover:underline">
                           {s.receiptNo}
