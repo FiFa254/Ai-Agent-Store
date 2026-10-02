@@ -1,10 +1,10 @@
 // Counter sale: scan/search products, adjust quantities, take cash (with change) or PromptPay, print receipt.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Banknote, Minus, Plus, Printer, QrCode, ScanLine, Trash2 } from 'lucide-react';
+import { Banknote, Minus, Plus, Printer, QrCode, ScanLine, ShoppingBasket, Trash2 } from 'lucide-react';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { effectivePrice, round2 } from '@shared/money';
 import type { Product, Sale } from '@shared/types';
-import { Button, Card, Dialog, EmptyState, ErrorBox, Input, cx, useToast } from '@/components/ui';
+import { Badge, Button, Card, Dialog, EmptyState, ErrorBox, Input, cx, useToast } from '@/components/ui';
 import { ReceiptView } from '@/features/sales/ReceiptView';
 import { api, qs } from '@/lib/api';
 import { formatBaht } from '@/lib/format';
@@ -25,6 +25,8 @@ export function PosPage() {
   const [receipt, setReceipt] = useState<Sale | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
+  const inBill = useMemo(() => new Map(lines.map((l) => [l.product.id, l.quantity])), [lines]);
+  const itemCount = lines.reduce((s, l) => s + l.quantity, 0);
   const total = round2(lines.reduce((s, l) => s + effectivePrice(l.product) * l.quantity, 0));
   const matches = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -86,15 +88,17 @@ export function PosPage() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
-      <section>
-        <form onSubmit={onSearchSubmit} className="mb-4">
-          <Input
+      <section className="min-w-0">
+        <form onSubmit={onSearchSubmit} className="relative mb-5">
+          <ScanLine className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-brand-700" aria-hidden />
+          <input
             ref={searchRef}
             autoFocus
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="สแกนบาร์โค้ด หรือค้นหาชื่อ / รหัสสินค้า แล้วกด Enter"
             aria-label="ค้นหาสินค้า"
+            className="h-13 w-full rounded-full border border-line-strong bg-surface pl-12 pr-4 text-base shadow-card placeholder:text-muted/80 focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-lime/40"
           />
         </form>
         {products.error && <ErrorBox error={products.error} />}
@@ -103,61 +107,81 @@ export function PosPage() {
             <EmptyState icon={<ScanLine className="size-10" />} title={products.data?.length ? 'ไม่พบสินค้า' : 'ยังไม่มีสินค้า'} description={products.data?.length ? undefined : 'เพิ่มสินค้าที่หน้า "สินค้า" ก่อน'} />
           </Card>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {matches.map((p) => (
-              <button
-                key={p.id}
-                disabled={p.stock <= 0}
-                onClick={() => add(p)}
-                className="rounded-xl border border-line bg-white p-3 text-left hover:border-brand-500 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
-              >
-                <p className="line-clamp-2 min-h-10 text-sm font-semibold">{p.name}</p>
-                <p className="text-xs text-muted">{p.sku}</p>
-                <p className="mt-1 font-bold text-brand-700">{formatBaht(effectivePrice(p))}</p>
-                <p className={cx('text-xs', p.stock <= p.minStock ? 'text-warn' : 'text-muted')}>คงเหลือ {p.stock}</p>
-              </button>
-            ))}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">
+            {matches.map((p) => {
+              const qty = inBill.get(p.id) ?? 0;
+              return (
+                <button
+                  key={p.id}
+                  disabled={p.stock <= 0}
+                  onClick={() => add(p)}
+                  className={cx(
+                    'relative flex min-h-36 flex-col rounded-2xl border bg-surface p-4 text-left shadow-card transition-[border-color,transform] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 cursor-pointer',
+                    qty ? 'border-forest ring-2 ring-lime' : 'border-line hover:border-forest/40'
+                  )}
+                >
+                  {qty > 0 && (
+                    <span className="absolute right-3 top-3 flex size-7 items-center justify-center rounded-full bg-forest text-xs font-bold text-lime tabular-nums" aria-label={`ในบิล ${qty}`}>
+                      {qty}
+                    </span>
+                  )}
+                  <p className="line-clamp-2 min-h-10 pr-8 text-sm font-semibold leading-5">{p.name}</p>
+                  <p className="mt-0.5 text-xs text-muted">{p.sku}</p>
+                  <div className="mt-auto flex items-end justify-between gap-2 pt-3">
+                    <span className="font-display text-lg font-bold tabular-nums">{formatBaht(effectivePrice(p))}</span>
+                    <span className={cx('text-xs tabular-nums', p.stock <= p.minStock ? 'font-medium text-warn' : 'text-muted')}>เหลือ {p.stock}</span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
       </section>
 
-      <Card className="flex h-fit flex-col xl:sticky xl:top-6">
-        <h2 className="border-b border-line px-5 py-3 font-semibold">รายการขาย</h2>
+      <Card className="flex h-fit flex-col overflow-hidden xl:sticky xl:top-6">
+        <div className="flex items-center justify-between bg-forest px-5 py-4 text-white">
+          <h2 className="flex items-center gap-2 font-display text-lg font-semibold">
+            <ShoppingBasket className="size-5 text-lime" aria-hidden /> รายการขาย
+          </h2>
+          {itemCount > 0 && <Badge tone="lime">{itemCount} ชิ้น</Badge>}
+        </div>
         {lines.length === 0 ? (
           <EmptyState title="ยังไม่มีสินค้า" description="สแกนหรือเลือกสินค้าทางซ้าย" />
         ) : (
           <ul className="max-h-[45vh] divide-y divide-line overflow-y-auto">
             {lines.map((l) => (
-              <li key={l.product.id} className="flex items-center gap-2 px-4 py-2.5">
+              <li key={l.product.id} className="flex items-center gap-1.5 px-4 py-3">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{l.product.name}</p>
-                  <p className="text-xs text-muted">{formatBaht(effectivePrice(l.product))}</p>
+                  <p className="text-xs text-muted tabular-nums">{formatBaht(effectivePrice(l.product))}</p>
                 </div>
-                <Button variant="ghost" size="sm" aria-label="ลด" onClick={() => setQty(l.product.id, l.quantity - 1)}>
-                  <Minus className="size-4" />
-                </Button>
-                <span className="w-7 text-center text-sm font-semibold">{l.quantity}</span>
-                <Button variant="ghost" size="sm" aria-label="เพิ่ม" onClick={() => setQty(l.product.id, l.quantity + 1)}>
-                  <Plus className="size-4" />
-                </Button>
-                <span className="w-20 text-right text-sm font-semibold">{formatBaht(effectivePrice(l.product) * l.quantity)}</span>
-                <Button variant="ghost" size="sm" aria-label="ลบ" onClick={() => setQty(l.product.id, 0)}>
+                <div className="flex items-center rounded-full bg-subtle ring-1 ring-line">
+                  <Button variant="ghost" size="icon" aria-label="ลด" onClick={() => setQty(l.product.id, l.quantity - 1)}>
+                    <Minus className="size-4" />
+                  </Button>
+                  <span className="w-7 text-center text-sm font-semibold tabular-nums">{l.quantity}</span>
+                  <Button variant="ghost" size="icon" aria-label="เพิ่ม" onClick={() => setQty(l.product.id, l.quantity + 1)}>
+                    <Plus className="size-4" />
+                  </Button>
+                </div>
+                <span className="w-20 text-right text-sm font-semibold tabular-nums">{formatBaht(effectivePrice(l.product) * l.quantity)}</span>
+                <Button variant="ghost" size="icon" aria-label="ลบ" onClick={() => setQty(l.product.id, 0)}>
                   <Trash2 className="size-4 text-danger" />
                 </Button>
               </li>
             ))}
           </ul>
         )}
-        <div className="border-t border-line p-5">
+        <div className="border-t border-line bg-subtle p-5">
           <div className="mb-4 flex items-baseline justify-between">
             <span className="text-muted">ยอดชำระ</span>
-            <span className="text-3xl font-bold">{formatBaht(total)}</span>
+            <span className="font-display text-4xl font-bold tracking-tight tabular-nums">{formatBaht(total)}</span>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Button size="lg" variant={payment === 'cash' ? 'primary' : 'secondary'} disabled={!lines.length} onClick={() => setPayment('cash')}>
+            <Button size="lg" aria-pressed={payment === 'cash'} variant={payment === 'cash' ? 'primary' : 'secondary'} disabled={!lines.length} onClick={() => setPayment('cash')}>
               <Banknote className="size-5" /> เงินสด
             </Button>
-            <Button size="lg" variant={payment === 'promptpay' ? 'primary' : 'secondary'} disabled={!lines.length} onClick={() => setPayment('promptpay')}>
+            <Button size="lg" aria-pressed={payment === 'promptpay'} variant={payment === 'promptpay' ? 'primary' : 'secondary'} disabled={!lines.length} onClick={() => setPayment('promptpay')}>
               <QrCode className="size-5" /> พร้อมเพย์
             </Button>
           </div>
@@ -172,21 +196,22 @@ export function PosPage() {
                   </Button>
                 ))}
               </div>
-              <p className="flex justify-between text-lg">
-                <span>เงินทอน</span>
-                <span className="font-bold text-brand-700">{change === null ? '-' : formatBaht(change)}</span>
+              <p className="flex items-baseline justify-between rounded-2xl bg-lime-soft px-4 py-3 text-lime-ink ring-1 ring-lime-strong/50">
+                <span className="font-medium">เงินทอน</span>
+                <span className="font-display text-2xl font-bold tabular-nums">{change === null ? '-' : formatBaht(change)}</span>
               </p>
             </div>
           )}
           {payment === 'promptpay' && lines.length > 0 && (
             <div className="mt-4 text-center">
-              {qr.error ? <ErrorBox error={qr.error} /> : qr.data ? <div className="qr mx-auto w-52" dangerouslySetInnerHTML={{ __html: qr.data.svg }} /> : <p className="py-8 text-sm text-muted">กำลังสร้าง QR...</p>}
+              {qr.error ? <ErrorBox error={qr.error} /> : qr.data ? <div className="qr mx-auto w-52 rounded-2xl bg-white p-2 ring-1 ring-line" dangerouslySetInnerHTML={{ __html: qr.data.svg }} /> : <p className="py-8 text-sm text-muted">กำลังสร้าง QR...</p>}
               <p className="mt-2 text-sm text-muted">ให้ลูกค้าสแกน แล้วตรวจสอบยอดเงินเข้าก่อนกดยืนยัน</p>
             </div>
           )}
           <ErrorBox error={sell.error} />
           <Button
             size="lg"
+            variant="accent"
             className="mt-4 w-full"
             disabled={!lines.length || !payment || (payment === 'cash' && change === null) || (payment === 'promptpay' && !qr.data)}
             loading={sell.isPending}
@@ -217,7 +242,7 @@ export function PosPage() {
       >
         {receipt && (
           <>
-            {receipt.change !== null && receipt.change > 0 && <p className="no-print mb-3 rounded-lg bg-brand-50 p-3 text-center text-lg font-bold text-brand-800">ทอนเงิน {formatBaht(receipt.change)}</p>}
+            {receipt.change !== null && receipt.change > 0 && <p className="no-print mb-4 rounded-2xl bg-lime-soft p-3.5 text-center font-display text-xl font-bold text-lime-ink">ทอนเงิน {formatBaht(receipt.change)}</p>}
             <ReceiptView sale={receipt} />
           </>
         )}
