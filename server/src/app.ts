@@ -25,10 +25,13 @@ export interface Deps {
   logger: Logger;
 }
 
+const parseTrustProxy = (value: string): boolean | number | string =>
+  value === 'true' ? true : value === 'false' ? false : /^\d+$/.test(value) ? Number(value) : value;
+
 export function createApp(deps: Deps, options: { clientDir?: string } = {}) {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 'loopback');
+  app.set('trust proxy', parseTrustProxy(deps.config.TRUST_PROXY));
 
   app.use(
     helmet({
