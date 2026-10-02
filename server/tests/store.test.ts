@@ -19,7 +19,7 @@ before(async () => {
 });
 
 after(async () => {
-  await t.db.close();
+  await t?.db.close();
   await dropTestDatabase();
 });
 
