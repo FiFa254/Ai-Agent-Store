@@ -60,7 +60,7 @@ export function StockPage() {
       <PageHeader title="สต็อกสินค้า" description="ทุกการเปลี่ยนแปลงสต็อกถูกบันทึกพร้อมผู้ทำรายการ" />
       <div className="mb-6 grid gap-6 lg:grid-cols-[420px_1fr]">
         <Card className="p-5">
-          <h2 className="mb-4 font-semibold">รับเข้า / ปรับยอด</h2>
+          <h2 className="mb-4 font-display text-lg font-semibold">รับเข้า / ปรับยอด</h2>
           <form onSubmit={submit} className="space-y-4">
             <Select label="สินค้า" required value={form.productId} error={fields.productId} onChange={(e) => setForm({ ...form, productId: e.target.value })}>
               <option value="">เลือกสินค้า</option>
@@ -88,8 +88,8 @@ export function StockPage() {
             </Button>
           </form>
         </Card>
-        <Card>
-          <h2 className="border-b border-line px-5 py-3 font-semibold">สินค้าที่ต่ำกว่าขั้นต่ำ ({low.length})</h2>
+        <Card className="overflow-hidden">
+          <h2 className="px-5 pb-3 pt-5 font-display text-lg font-semibold">สินค้าที่ต่ำกว่าขั้นต่ำ ({low.length})</h2>
           {low.length === 0 ? (
             <EmptyState title="สต็อกเพียงพอทุกรายการ" />
           ) : (
@@ -100,7 +100,7 @@ export function StockPage() {
                     {p.name}
                   </button>
                   <Badge tone={p.stock === 0 ? 'red' : 'amber'}>
-                    {p.stock} / {p.minStock}
+                    เหลือ {p.stock} / ขั้นต่ำ {p.minStock}
                   </Badge>
                 </li>
               ))}
@@ -109,9 +109,9 @@ export function StockPage() {
         </Card>
       </div>
 
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
-          <h2 className="flex items-center gap-2 font-semibold">
+      <Card className="overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 pb-3 pt-5">
+          <h2 className="flex items-center gap-2 font-display text-lg font-semibold">
             <History className="size-4" /> ประวัติการเคลื่อนไหว
           </h2>
           <Select aria-label="กรองสินค้า" value={productFilter} onChange={(e) => { setProductFilter(e.target.value); setPage(1); }} className="w-64">

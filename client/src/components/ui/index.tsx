@@ -4,12 +4,22 @@ import { createContext, useCallback, useContext, useEffect, useId, useState, typ
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
+type Variant = 'primary' | 'accent' | 'secondary' | 'danger' | 'ghost';
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-brand-700 text-white hover:bg-brand-800 disabled:bg-brand-700/50',
-  secondary: 'bg-white text-ink border border-line hover:bg-slate-50 disabled:text-muted',
-  danger: 'bg-danger text-white hover:bg-rose-700 disabled:bg-danger/50',
-  ghost: 'text-ink hover:bg-slate-100 disabled:text-muted',
+  primary: 'bg-forest text-white hover:bg-forest-soft disabled:bg-forest/45',
+  accent: 'bg-lime text-lime-ink hover:bg-lime-strong disabled:bg-lime/50 disabled:text-lime-ink/60',
+  secondary: 'bg-surface text-ink border border-line-strong hover:border-forest/40 hover:bg-subtle disabled:text-muted',
+  danger: 'bg-danger text-white hover:bg-rose-800 disabled:bg-danger/50',
+  ghost: 'text-ink hover:bg-forest/5 disabled:text-muted',
+};
+
+type Size = 'sm' | 'md' | 'lg' | 'icon' | 'icon-lg';
+const SIZES: Record<Size, string> = {
+  sm: 'h-8 px-3.5 text-xs',
+  md: 'h-10 px-5 text-sm',
+  lg: 'h-12 px-6 text-base',
+  icon: 'size-8 shrink-0',
+  'icon-lg': 'size-11 shrink-0',
 };
 
 export function Button({
@@ -19,16 +29,14 @@ export function Button({
   className,
   children,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' | 'lg'; loading?: boolean }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size; loading?: boolean }) {
   return (
     <button
       {...props}
       disabled={props.disabled || loading}
       className={cx(
-        'inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-colors disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 cursor-pointer',
-        size === 'sm' && 'h-8 px-3 text-xs',
-        size === 'md' && 'h-10 px-4 text-sm',
-        size === 'lg' && 'h-12 px-5 text-base',
+        'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full font-semibold transition-[background-color,border-color,color,transform] duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:active:scale-100 cursor-pointer',
+        SIZES[size],
         VARIANTS[variant],
         className
       )}
@@ -40,7 +48,7 @@ export function Button({
 }
 
 const fieldClass =
-  'w-full rounded-lg border border-line bg-white px-3 text-sm text-ink placeholder:text-slate-400 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:bg-slate-50';
+  'w-full rounded-xl border border-line-strong bg-surface px-3.5 text-sm text-ink placeholder:text-muted/80 transition-[border-color,box-shadow] focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-lime/40 disabled:bg-subtle disabled:text-muted';
 
 export function Field({ label, error, hint, children, htmlFor }: { label: string; error?: string; hint?: string; children: ReactNode; htmlFor?: string }) {
   return (
@@ -77,30 +85,49 @@ export function Select({ label, error, className, children, ...props }: SelectHT
 }
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cx('rounded-xl border border-line bg-surface shadow-sm', className)}>{children}</div>;
+  return <div className={cx('rounded-card border border-line bg-surface shadow-card', className)}>{children}</div>;
 }
 
 export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-2xl font-bold text-ink">{title}</h1>
-        {description && <p className="mt-1 text-sm text-muted">{description}</p>}
+    <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
+      <div className="min-w-0">
+        <h1 className="text-balance font-display text-[1.75rem] font-bold leading-tight tracking-tight text-ink">{title}</h1>
+        {description && <p className="mt-1.5 text-sm text-muted">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>
   );
 }
 
+export function StatCard({ icon, label, value, featured, className }: { icon?: ReactNode; label: string; value: string; featured?: boolean; className?: string }) {
+  return (
+    <div
+      className={cx(
+        'flex h-full flex-col justify-between gap-5 rounded-card border p-5 transition-shadow',
+        featured ? 'border-lime-strong bg-lime text-lime-ink' : 'border-line bg-surface shadow-card',
+        className
+      )}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <p className={cx('text-sm font-medium', featured ? 'text-lime-ink/80' : 'text-muted')}>{label}</p>
+        {icon && <span className={cx('flex size-9 shrink-0 items-center justify-center rounded-full', featured ? 'bg-lime-ink text-lime' : 'bg-subtle text-brand-700')}>{icon}</span>}
+      </div>
+      <p className="font-display text-[1.75rem] font-bold leading-none tracking-tight tabular-nums">{value}</p>
+    </div>
+  );
+}
+
 const BADGE_TONES = {
   green: 'bg-brand-50 text-brand-700 ring-brand-600/20',
-  amber: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+  lime: 'bg-lime-soft text-lime-ink ring-lime-strong/60',
+  amber: 'bg-amber-50 text-amber-800 ring-amber-600/25',
   red: 'bg-rose-50 text-rose-700 ring-rose-600/20',
-  slate: 'bg-slate-100 text-slate-700 ring-slate-500/20',
-  blue: 'bg-sky-50 text-sky-700 ring-sky-600/20',
+  slate: 'bg-subtle text-muted ring-line-strong',
+  blue: 'bg-sky-50 text-sky-800 ring-sky-600/20',
 };
 export function Badge({ tone = 'slate', children }: { tone?: keyof typeof BADGE_TONES; children: ReactNode }) {
-  return <span className={cx('inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset', BADGE_TONES[tone])}>{children}</span>;
+  return <span className={cx('inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset', BADGE_TONES[tone])}>{children}</span>;
 }
 
 export function Spinner({ label = 'กำลังโหลด...' }: { label?: string }) {
@@ -114,8 +141,8 @@ export function Spinner({ label = 'กำลังโหลด...' }: { label?: 
 export function EmptyState({ icon, title, description, action }: { icon?: ReactNode; title: string; description?: string; action?: ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 px-6 py-14 text-center">
-      {icon && <div className="mb-1 text-slate-300">{icon}</div>}
-      <p className="font-semibold text-ink">{title}</p>
+      {icon && <div className="mb-2 flex size-14 items-center justify-center rounded-full bg-lime-soft text-brand-700">{icon}</div>}
+      <p className="font-display font-semibold text-ink">{title}</p>
       {description && <p className="max-w-sm text-sm text-muted">{description}</p>}
       {action && <div className="mt-3">{action}</div>}
     </div>
@@ -125,7 +152,7 @@ export function EmptyState({ icon, title, description, action }: { icon?: ReactN
 export function ErrorBox({ error }: { error: unknown }) {
   if (!error) return null;
   return (
-    <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" role="alert">
+    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800" role="alert">
       {error instanceof Error ? error.message : String(error)}
     </div>
   );
@@ -140,16 +167,16 @@ export function Dialog({ open, onClose, title, children, footer, wide }: { open:
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 sm:items-center" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div role="dialog" aria-modal="true" aria-label={title} className={cx('flex max-h-[90vh] w-full flex-col rounded-xl bg-white shadow-xl', wide ? 'max-w-3xl' : 'max-w-lg')}>
-        <div className="flex items-center justify-between border-b border-line px-5 py-4">
-          <h2 className="text-base font-semibold">{title}</h2>
-          <button onClick={onClose} className="rounded-md p-1 text-muted hover:bg-slate-100 cursor-pointer" aria-label="ปิด">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-forest/45 p-4 backdrop-blur-[2px] sm:items-center" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div role="dialog" aria-modal="true" aria-label={title} className={cx('flex max-h-[90vh] w-full flex-col overflow-hidden rounded-card bg-surface shadow-pop', wide ? 'max-w-3xl' : 'max-w-lg')}>
+        <div className="flex items-center justify-between border-b border-line px-6 py-4">
+          <h2 className="font-display text-lg font-semibold">{title}</h2>
+          <button onClick={onClose} className="rounded-full p-1.5 text-muted hover:bg-subtle hover:text-ink cursor-pointer" aria-label="ปิด">
             <X className="size-5" />
           </button>
         </div>
-        <div className="overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-line px-5 py-3">{footer}</div>}
+        <div className="overflow-y-auto px-6 py-5">{children}</div>
+        {footer && <div className="flex justify-end gap-2 border-t border-line bg-subtle px-6 py-3.5">{footer}</div>}
       </div>
     </div>
   );
@@ -176,9 +203,9 @@ export function Pagination({ page, pageSize, total, onPage }: { page: number; pa
 }
 
 export const tableClass = {
-  table: 'w-full text-left text-sm',
-  th: 'border-b border-line bg-slate-50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted',
-  td: 'border-b border-line px-4 py-3 align-middle',
+  table: 'w-full text-left text-sm tabular-nums',
+  th: 'border-b border-line bg-subtle px-4 py-3 text-xs font-semibold text-muted',
+  td: 'border-b border-line px-4 py-3.5 align-middle',
 };
 
 // ---- toasts ----
@@ -200,8 +227,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             className={cx(
-              'rounded-lg px-4 py-3 text-sm font-medium shadow-lg',
-              t.tone === 'success' && 'bg-brand-700 text-white',
+              'rounded-2xl px-4 py-3 text-sm font-medium shadow-pop',
+              t.tone === 'success' && 'bg-forest text-white',
               t.tone === 'error' && 'bg-danger text-white',
               t.tone === 'info' && 'bg-ink text-white'
             )}

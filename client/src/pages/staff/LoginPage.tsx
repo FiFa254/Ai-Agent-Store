@@ -1,27 +1,47 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Store } from 'lucide-react';
+import { CheckCircle2, Leaf } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import type { SessionUser } from '@shared/types';
-import { Button, Card, ErrorBox, Input, Spinner } from '@/components/ui';
+import { Button, ErrorBox, Input, Spinner } from '@/components/ui';
 import { useMe, useSetupStatus } from '@/features/auth/auth';
 import { api } from '@/lib/api';
 
+const BACK_OFFICE_FEATURES = ['ขายหน้าร้าน (POS) และพิมพ์ใบเสร็จ', 'รับคำสั่งซื้อออนไลน์', 'จัดการสินค้า สต็อก และรายงานยอดขาย'];
+
 export function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-canvas p-4">
-      <Card className="w-full max-w-md p-8">
-        <div className="mb-6 flex items-center gap-3">
-          <span className="flex size-11 items-center justify-center rounded-xl bg-brand-700 text-white">
-            <Store className="size-6" aria-hidden />
+    <div className="grid min-h-screen bg-canvas lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+      <aside className="relative hidden overflow-hidden bg-forest p-12 text-white lg:flex lg:flex-col lg:justify-between">
+        <div aria-hidden className="pointer-events-none absolute -bottom-32 -right-24 size-96 rounded-full bg-lime/10" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-10 right-40 size-40 rounded-full bg-brand-500/25" />
+        <span className="flex items-center gap-2.5 font-display text-lg font-bold">
+          <span className="flex size-10 items-center justify-center rounded-full bg-lime text-lime-ink">
+            <Leaf className="size-5" aria-hidden />
           </span>
-          <div>
-            <h1 className="text-xl font-bold">{title}</h1>
-            <p className="text-sm text-muted">{subtitle}</p>
-          </div>
+          GrocerAI หลังร้าน
+        </span>
+        <div className="relative max-w-md">
+          <p className="text-balance font-display text-4xl font-bold leading-tight tracking-tight">ระบบหลังร้านสำหรับร้านชำของคุณ</p>
+          <ul className="mt-8 space-y-3 text-white/80">
+            {BACK_OFFICE_FEATURES.map((f) => (
+              <li key={f} className="flex items-center gap-3">
+                <CheckCircle2 className="size-5 shrink-0 text-lime" aria-hidden /> {f}
+              </li>
+            ))}
+          </ul>
         </div>
-        {children}
-      </Card>
+      </aside>
+      <main className="flex items-center justify-center p-4 sm:p-8">
+        <div className="w-full max-w-md rounded-[1.75rem] bg-surface p-7 shadow-card sm:p-10">
+          <span className="mb-8 flex size-11 items-center justify-center rounded-full bg-forest text-lime lg:hidden">
+            <Leaf className="size-5" aria-hidden />
+          </span>
+          <h1 className="font-display text-[1.75rem] font-bold leading-tight tracking-tight">{title}</h1>
+          <p className="mb-7 mt-1.5 text-sm text-muted">{subtitle}</p>
+          {children}
+        </div>
+      </main>
     </div>
   );
 }

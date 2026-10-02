@@ -1,13 +1,14 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Download } from 'lucide-react';
 import { useState } from 'react';
-import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { SalesReport } from '@shared/types';
-import { Button, Card, EmptyState, ErrorBox, Input, PageHeader, Spinner, tableClass } from '@/components/ui';
+import { Card, EmptyState, ErrorBox, Input, PageHeader, Spinner, StatCard, cx, tableClass } from '@/components/ui';
 import { api, qs } from '@/lib/api';
 import { CHANNEL_LABELS, formatBaht, formatDate, formatNumber, PAYMENT_LABELS, shiftDays, todayBkk } from '@/lib/format';
 
-const PIE_COLORS = ['#047857', '#0ea5e9', '#f59e0b', '#8b5cf6', '#e11d48', '#64748b'];
+const CHART = { bar: '#1f7d4a', grid: '#e2e7df', axis: '#5a665e' };
+const TOOLTIP_STYLE = { borderRadius: 14, border: '1px solid #e2e7df', boxShadow: '0 10px 28px -14px rgb(19 33 26 / 0.25)', fontSize: 13 };
 
 const PRESETS = [
   { label: 'วันนี้', days: 0 },
@@ -24,6 +25,7 @@ export function ReportsPage() {
     placeholderData: keepPreviousData,
   });
   const r = report.data;
+  const topCategory = Math.max(1, ...(r?.byCategory.map((c) => c.sales) ?? []));
 
   return (
     <div>
@@ -31,21 +33,33 @@ export function ReportsPage() {
         title="รายงานยอดขาย"
         description="ตามวันที่ประเทศไทย ยอดรวม VAT"
         actions={
-          <a href={`/api/reports/export/sales.csv${qs(range)}`}>
-            <Button variant="secondary">
-              <Download className="size-4" /> ส่งออก CSV (Excel)
-            </Button>
+          <a
+            href={`/api/reports/export/sales.csv${qs(range)}`}
+            className="inline-flex h-10 items-center gap-2 rounded-full border border-line-strong bg-surface px-5 text-sm font-semibold transition-colors hover:border-forest/40 hover:bg-subtle"
+          >
+            <Download className="size-4" aria-hidden /> ส่งออก CSV (Excel)
           </a>
         }
       />
-      <Card className="mb-6 flex flex-wrap items-end gap-3 p-4">
+      <Card className="mb-6 flex flex-wrap items-end gap-3 p-4 sm:p-5">
         <Input label="ตั้งแต่" type="date" value={range.from} max={range.to} onChange={(e) => setRange({ ...range, from: e.target.value })} />
         <Input label="ถึง" type="date" value={range.to} min={range.from} onChange={(e) => setRange({ ...range, to: e.target.value })} />
-        {PRESETS.map((p) => (
-          <Button key={p.label} variant="secondary" onClick={() => setRange({ from: shiftDays(today, -p.days), to: today })}>
-            {p.label}
-          </Button>
-        ))}
+        <div className="flex rounded-full bg-subtle p-1 ring-1 ring-line" role="group" aria-label="ช่วงเวลาสำเร็จรูป">
+          {PRESETS.map((p) => {
+            const active = range.to === today && range.from === shiftDays(today, -p.days);
+            return (
+              <button
+                key={p.label}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setRange({ from: shiftDays(today, -p.days), to: today })}
+                className={cx('h-8 rounded-full px-4 text-sm font-medium transition-colors cursor-pointer', active ? 'bg-forest text-white' : 'text-muted hover:text-ink')}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
       </Card>
       {report.isLoading ? (
         <Spinner />
@@ -63,30 +77,44 @@ export function ReportsPage() {
               ['จำนวนบิล', formatNumber(r.totals.bills)],
               ['เฉลี่ยต่อบิล', formatBaht(r.totals.averageBill)],
               ['VAT ในยอดขาย', formatBaht(r.totals.vat)],
-            ].map(([label, value]) => (
-              <Card key={label} className="p-5">
-                <p className="text-sm text-muted">{label}</p>
-                <p className="text-2xl font-bold">{value}</p>
-              </Card>
+            ].map(([label, value], i) => (
+              <StatCard key={label} label={label} value={value} featured={i === 0} />
             ))}
           </div>
-          <Card className="p-5">
-            <h2 className="mb-4 font-semibold">ยอดขายรายวัน</h2>
-            <div className="h-72">
+          <Card className="p-5 sm:p-6">
+            <h2 className="mb-5 font-display text-lg font-semibold">ยอดขายรายวัน</h2>
+            <div className="h-72" aria-hidden>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={r.byDay.map((d) => ({ ...d, label: formatDate(d.date) }))}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                  <XAxis dataKey="label" fontSize={12} tickLine={false} />
-                  <YAxis fontSize={12} tickLine={false} width={70} tickFormatter={(v) => formatNumber(v)} />
-                  <Tooltip formatter={(v) => formatBaht(Number(v))} labelFormatter={(l) => `วันที่ ${l}`} />
-                  <Bar dataKey="sales" name="ยอดขาย" fill="#047857" radius={[4, 4, 0, 0]} />
+                <BarChart data={r.byDay.map((d) => ({ ...d, label: formatDate(d.date) }))} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke={CHART.grid} vertical={false} />
+                  <XAxis dataKey="label" fontSize={12} tickLine={false} axisLine={{ stroke: CHART.grid }} tick={{ fill: CHART.axis }} />
+                  <YAxis fontSize={12} tickLine={false} axisLine={false} width={64} tick={{ fill: CHART.axis }} tickFormatter={(v) => formatNumber(v)} />
+                  <Tooltip cursor={{ fill: '#f6f8f3' }} contentStyle={TOOLTIP_STYLE} formatter={(v) => formatBaht(Number(v))} labelFormatter={(l) => `วันที่ ${l}`} />
+                  <Bar dataKey="sales" name="ยอดขาย" fill={CHART.bar} maxBarSize={24} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
+            <table className="sr-only">
+              <caption>ยอดขายรายวัน</caption>
+              <thead>
+                <tr>
+                  <th>วันที่</th>
+                  <th>ยอดขาย</th>
+                </tr>
+              </thead>
+              <tbody>
+                {r.byDay.map((d) => (
+                  <tr key={d.date}>
+                    <td>{formatDate(d.date)}</td>
+                    <td>{formatBaht(d.sales)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </Card>
           <div className="grid gap-6 lg:grid-cols-3">
-            <Card className="p-5 lg:col-span-2">
-              <h2 className="mb-3 font-semibold">สินค้าขายดี</h2>
+            <Card className="overflow-hidden lg:col-span-2">
+              <h2 className="px-5 pb-3 pt-5 font-display text-lg font-semibold">สินค้าขายดี</h2>
               <table className={tableClass.table}>
                 <thead>
                   <tr>
@@ -107,31 +135,21 @@ export function ReportsPage() {
               </table>
             </Card>
             <Card className="p-5">
-              <h2 className="mb-2 font-semibold">ตามหมวดหมู่</h2>
-              <div className="h-56">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={r.byCategory} dataKey="sales" nameKey="category" innerRadius={45} outerRadius={80}>
-                      {r.byCategory.map((_, i) => (
-                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(v) => formatBaht(Number(v))} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <ul className="mt-2 space-y-1 text-sm">
-                {r.byCategory.map((c, i) => (
-                  <li key={c.category} className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <span className="size-2.5 rounded-full" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                      {c.category}
-                    </span>
-                    <span>{formatBaht(c.sales)}</span>
+              <h2 className="mb-4 font-display text-lg font-semibold">ตามหมวดหมู่</h2>
+              <ul className="space-y-3.5 text-sm">
+                {r.byCategory.map((c) => (
+                  <li key={c.category}>
+                    <div className="mb-1.5 flex items-baseline justify-between gap-3">
+                      <span className="truncate">{c.category}</span>
+                      <span className="font-semibold tabular-nums">{formatBaht(c.sales)}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-subtle" aria-hidden>
+                      <div className="h-full rounded-full bg-brand-600" style={{ width: `${(c.sales / topCategory) * 100}%` }} />
+                    </div>
                   </li>
                 ))}
               </ul>
-              <div className="mt-4 space-y-1 border-t border-line pt-3 text-sm">
+              <div className="mt-5 space-y-1.5 border-t border-line pt-4 text-sm tabular-nums">
                 {r.byChannel.map((c) => (
                   <p key={c.channel} className="flex justify-between">
                     <span>{CHANNEL_LABELS[c.channel] ?? c.channel}</span>

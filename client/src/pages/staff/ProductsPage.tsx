@@ -47,10 +47,11 @@ export function ProductsPage() {
         description="ราคารวม VAT · สินค้าที่เคยขายจะถูกปิดการขายแทนการลบ"
         actions={
           <>
-            <a href="/api/reports/export/inventory.csv">
-              <Button variant="secondary">
-                <Download className="size-4" /> ส่งออก CSV
-              </Button>
+            <a
+              href="/api/reports/export/inventory.csv"
+              className="inline-flex h-10 items-center gap-2 rounded-full border border-line-strong bg-surface px-5 text-sm font-semibold transition-colors hover:border-forest/40 hover:bg-subtle"
+            >
+              <Download className="size-4" aria-hidden /> ส่งออก CSV
             </a>
             <Button variant="secondary" onClick={() => setCategoriesOpen(true)}>
               <Tags className="size-4" /> หมวดหมู่
@@ -67,7 +68,7 @@ export function ProductsPage() {
           <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="size-4 accent-brand-700" /> แสดงสินค้าที่เลิกขาย
         </label>
       </Card>
-      <Card>
+      <Card className="overflow-hidden">
         {products.isLoading ? (
           <Spinner />
         ) : products.error ? (
@@ -93,7 +94,7 @@ export function ProductsPage() {
               </thead>
               <tbody>
                 {products.data!.map((p) => (
-                  <tr key={p.id} className={p.isActive ? 'hover:bg-slate-50' : 'bg-slate-50 text-muted'}>
+                  <tr key={p.id} className={p.isActive ? 'hover:bg-subtle' : 'bg-subtle text-muted'}>
                     <td className={tableClass.td}>
                       <p className="font-medium">{p.name}</p>
                       <p className="text-xs text-muted">

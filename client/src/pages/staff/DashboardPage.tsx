@@ -3,22 +3,29 @@ import { AlertTriangle, ClipboardList, Receipt, ShoppingCart, Wallet } from 'luc
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { DashboardSummary } from '@shared/types';
-import { Badge, Button, Card, EmptyState, ErrorBox, PageHeader, Spinner, tableClass } from '@/components/ui';
+import { Badge, Card, EmptyState, ErrorBox, Spinner, StatCard, tableClass } from '@/components/ui';
 import { can, useMe } from '@/features/auth/auth';
 import { api } from '@/lib/api';
-import { CHANNEL_LABELS, formatBaht, formatDateTime, formatNumber, PAYMENT_LABELS } from '@/lib/format';
+import { CHANNEL_LABELS, formatBaht, formatDate, formatDateTime, formatNumber, PAYMENT_LABELS, todayBkk } from '@/lib/format';
 
-function Stat({ icon, label, value, to }: { icon: ReactNode; label: string; value: string; to?: string }) {
-  const body = (
-    <Card className="flex items-center gap-4 p-5 transition-colors hover:border-brand-500">
-      <span className="flex size-11 items-center justify-center rounded-lg bg-brand-50 text-brand-700">{icon}</span>
-      <div>
-        <p className="text-sm text-muted">{label}</p>
-        <p className="text-2xl font-bold">{value}</p>
-      </div>
-    </Card>
+function Stat({ icon, label, value, to, featured }: { icon: ReactNode; label: string; value: string; to?: string; featured?: boolean }) {
+  const body = <StatCard icon={icon} label={label} value={value} featured={featured} className={to ? 'hover:shadow-pop' : undefined} />;
+  return to ? (
+    <Link to={to} className="block rounded-card">
+      {body}
+    </Link>
+  ) : (
+    body
   );
-  return to ? <Link to={to}>{body}</Link> : body;
+}
+
+function PanelTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-5 pb-3 pt-5">
+      <h2 className="font-display text-lg font-semibold">{children}</h2>
+      {action}
+    </div>
+  );
 }
 
 export function DashboardPage() {
@@ -30,27 +37,28 @@ export function DashboardPage() {
 
   return (
     <div>
-      <PageHeader
-        title={`สวัสดี ${me.data?.displayName ?? ''}`}
-        description="ภาพรวมของวันนี้"
-        actions={
-          <Link to="/staff/pos">
-            <Button>
-              <ShoppingCart className="size-4" /> เปิดหน้าขาย
-            </Button>
-          </Link>
-        }
-      />
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat icon={<Wallet className="size-5" />} label="ยอดขายวันนี้" value={formatBaht(d.today.sales)} to={can(me.data, 'manager') ? '/staff/reports' : undefined} />
-        <Stat icon={<Receipt className="size-5" />} label="จำนวนบิลวันนี้" value={formatNumber(d.today.bills)} to="/staff/receipts" />
-        <Stat icon={<ClipboardList className="size-5" />} label="ออเดอร์รอชำระ" value={formatNumber(d.awaitingOrders)} to="/staff/orders" />
-        <Stat icon={<AlertTriangle className="size-5" />} label="สินค้าใกล้หมด" value={formatNumber(d.lowStock.length)} to={can(me.data, 'manager') ? '/staff/stock' : undefined} />
+      <section className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] bg-forest px-6 py-5 text-white sm:px-8">
+        <div className="min-w-0">
+          <h1 className="text-balance font-display text-2xl font-bold tracking-tight">สวัสดี {me.data?.displayName ?? ''}</h1>
+          <p className="mt-1 text-sm text-white/70">ภาพรวมของวันนี้ · {formatDate(todayBkk())}</p>
+        </div>
+        <Link
+          to="/staff/pos"
+          className="inline-flex h-12 items-center gap-2 rounded-full bg-lime px-6 font-semibold text-lime-ink transition-colors hover:bg-lime-strong"
+        >
+          <ShoppingCart className="size-5" aria-hidden /> เปิดหน้าขาย
+        </Link>
+      </section>
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat featured icon={<Wallet className="size-[18px]" />} label="ยอดขายวันนี้" value={formatBaht(d.today.sales)} to={can(me.data, 'manager') ? '/staff/reports' : undefined} />
+        <Stat icon={<Receipt className="size-[18px]" />} label="จำนวนบิลวันนี้" value={formatNumber(d.today.bills)} to="/staff/receipts" />
+        <Stat icon={<ClipboardList className="size-[18px]" />} label="ออเดอร์รอชำระ" value={formatNumber(d.awaitingOrders)} to="/staff/orders" />
+        <Stat icon={<AlertTriangle className="size-[18px]" />} label="สินค้าใกล้หมด" value={formatNumber(d.lowStock.length)} to={can(me.data, 'manager') ? '/staff/stock' : undefined} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <h2 className="border-b border-line px-5 py-3 font-semibold">บิลล่าสุด</h2>
+        <Card className="overflow-hidden">
+          <PanelTitle action={<Link to="/staff/receipts" className="text-sm font-medium text-brand-700 hover:underline">ดูทั้งหมด</Link>}>บิลล่าสุด</PanelTitle>
           {d.recentSales.length === 0 ? (
             <EmptyState title="ยังไม่มีการขาย" description="เริ่มขายจากหน้า POS" />
           ) : (
@@ -65,7 +73,10 @@ export function DashboardPage() {
                       <p className="text-xs text-muted">{formatDateTime(s.createdAt)}</p>
                     </td>
                     <td className={tableClass.td}>
-                      <Badge tone={s.channel === 'online' ? 'blue' : 'slate'}>{CHANNEL_LABELS[s.channel]}</Badge> <span className="text-xs text-muted">{PAYMENT_LABELS[s.paymentMethod]}</span>
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <Badge tone={s.channel === 'online' ? 'blue' : 'slate'}>{CHANNEL_LABELS[s.channel]}</Badge>
+                        <span className="text-xs text-muted">{PAYMENT_LABELS[s.paymentMethod]}</span>
+                      </span>
                     </td>
                     <td className={`${tableClass.td} text-right font-semibold`}>{formatBaht(s.total)}</td>
                   </tr>
@@ -74,8 +85,8 @@ export function DashboardPage() {
             </table>
           )}
         </Card>
-        <Card>
-          <h2 className="border-b border-line px-5 py-3 font-semibold">สินค้าใกล้หมด</h2>
+        <Card className="overflow-hidden">
+          <PanelTitle>สินค้าใกล้หมด</PanelTitle>
           {d.lowStock.length === 0 ? (
             <EmptyState title="สต็อกเพียงพอทุกรายการ" />
           ) : (

@@ -29,7 +29,7 @@ export function AccountPage() {
     <div className="max-w-lg">
       <PageHeader title="บัญชีของฉัน" description={`${me.data?.displayName} (${me.data?.username}) · ${me.data ? ROLE_LABELS[me.data.role] : ''}`} />
       <Card className="p-5">
-        <h2 className="mb-4 font-semibold">เปลี่ยนรหัสผ่าน</h2>
+        <h2 className="mb-4 font-display text-lg font-semibold">เปลี่ยนรหัสผ่าน</h2>
         <form onSubmit={submit} className="space-y-4">
           <Input label="รหัสผ่านปัจจุบัน" type="password" autoComplete="current-password" required value={f.currentPassword} error={err.currentPassword} onChange={(e) => setF({ ...f, currentPassword: e.target.value })} />
           <Input label="รหัสผ่านใหม่" type="password" autoComplete="new-password" required value={f.newPassword} error={err.newPassword} hint="อย่างน้อย 8 ตัว มีตัวอักษรและตัวเลข" onChange={(e) => setF({ ...f, newPassword: e.target.value })} />
