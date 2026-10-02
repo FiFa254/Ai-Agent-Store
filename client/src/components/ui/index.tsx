@@ -100,6 +100,24 @@ export function PageHeader({ title, description, actions }: { title: string; des
   );
 }
 
+export function StatCard({ icon, label, value, featured, className }: { icon?: ReactNode; label: string; value: string; featured?: boolean; className?: string }) {
+  return (
+    <div
+      className={cx(
+        'flex h-full flex-col justify-between gap-5 rounded-card border p-5 transition-shadow',
+        featured ? 'border-lime-strong bg-lime text-lime-ink' : 'border-line bg-surface shadow-card',
+        className
+      )}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <p className={cx('text-sm font-medium', featured ? 'text-lime-ink/80' : 'text-muted')}>{label}</p>
+        {icon && <span className={cx('flex size-9 shrink-0 items-center justify-center rounded-full', featured ? 'bg-lime-ink text-lime' : 'bg-subtle text-brand-700')}>{icon}</span>}
+      </div>
+      <p className="font-display text-[1.75rem] font-bold leading-none tracking-tight tabular-nums">{value}</p>
+    </div>
+  );
+}
+
 const BADGE_TONES = {
   green: 'bg-brand-50 text-brand-700 ring-brand-600/20',
   lime: 'bg-lime-soft text-lime-ink ring-lime-strong/60',
