@@ -1,8 +1,8 @@
 // SQL Server access through msnodesqlv8 (ODBC, Windows authentication).
 // A small pool of connections: reads run in parallel, a transaction holds one connection until it ends.
-import sql from 'msnodesqlv8';
+import { openConnection, runOnce, type Conn, type Row } from './driver';
 
-export type Row = Record<string, any>;
+export type { Row };
 
 export interface Queryable {
   query<T = Row>(text: string, params?: unknown[]): Promise<T[]>;
@@ -11,14 +11,7 @@ export interface Queryable {
   run(text: string, params?: unknown[]): Promise<number>;
 }
 
-interface Conn {
-  promises: {
-    query(text: string, params?: unknown[], options?: { timeoutMs?: number }): Promise<any>;
-    close(): Promise<void>;
-  };
-}
-
-const lastCount = (result: any) => {
+const lastCount = (result: { counts?: number[] }) => {
   const counts: number[] = result?.counts ?? [];
   return counts.length > 0 ? counts[counts.length - 1] : 0;
 };
@@ -36,11 +29,11 @@ export class Db implements Queryable {
   static async connect(connectionString: string, size = 4): Promise<Db> {
     const database = databaseName(connectionString);
     const master = connectionString.replace(/((?:^|;)\s*(?:Database|Initial Catalog)\s*=)\s*[^;]+/i, '$1master');
-    await sql.promises.query(master, `IF DB_ID(N'${database}') IS NULL CREATE DATABASE [${database}]`);
+    await runOnce(master, `IF DB_ID(N'${database}') IS NULL CREATE DATABASE [${database}]`).catch(() => undefined);
 
     const connections: Conn[] = [];
     for (let i = 0; i < size; i++) {
-      const c: Conn = await sql.promises.open(connectionString);
+      const c: Conn = await openConnection(connectionString);
       await c.promises.query('SET XACT_ABORT ON');
       connections.push(c);
     }

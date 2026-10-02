@@ -1,8 +1,8 @@
 @echo off
-rem Double-click to run GrocerAI (storefront + staff back office) at http://localhost:3000
+rem Double-click to run GrocerAI (storefront + staff back office) at the PORT set in .env (default 8080)
 setlocal
 cd /d "%~dp0"
-title GrocerAI - http://localhost:3000
+title GrocerAI
 
 where node >nul 2>nul
 if errorlevel 1 (
@@ -29,6 +29,10 @@ if not exist .env (
     start /wait notepad .env
 )
 
+set "PORT=8080"
+for /f "usebackq tokens=1,* delims==" %%A in (`findstr /b /r "PORT=" .env`) do set "PORT=%%B"
+title GrocerAI - http://localhost:%PORT%
+
 if not exist node_modules (
     echo Installing packages ^(first run only^)...
     call npm ci --no-audit --no-fund
@@ -40,9 +44,9 @@ call npm run build
 if errorlevel 1 goto :fail
 
 set NODE_ENV=production
-start "" cmd /c "timeout /t 4 >nul & start http://localhost:3000/staff"
+start "" cmd /c "timeout /t 4 >nul & start http://localhost:%PORT%/staff"
 echo.
-echo GrocerAI: storefront http://localhost:3000  -  staff back office http://localhost:3000/staff
+echo GrocerAI: storefront http://localhost:%PORT%  -  staff back office http://localhost:%PORT%/staff
 echo Close this window to stop it.
 echo.
 cd server

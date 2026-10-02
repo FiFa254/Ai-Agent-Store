@@ -9,6 +9,8 @@ dotenv.config({ path: path.resolve(process.cwd(), '..', '.env'), quiet: true });
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().default(3000),
+  HOST: z.string().default('127.0.0.1'),
+  TRUST_PROXY: z.string().default('loopback'),
   MSSQL_CONNECTION_STRING: z
     .string()
     .default('Driver={ODBC Driver 17 for SQL Server};Server=localhost;Database=GroceryAI;Trusted_Connection=yes;'),

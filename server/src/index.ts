@@ -34,7 +34,7 @@ async function main() {
 
   const clientDir = path.resolve(process.cwd(), '../client/dist');
   const app = createApp({ db, config, logger }, { clientDir });
-  const server = app.listen(config.PORT, '127.0.0.1', () => {
+  const server = app.listen(config.PORT, config.HOST, () => {
     logger.info(`GrocerAI running at http://localhost:${config.PORT} (database ${db.databaseName}${config.GEMINI_API_KEY ? ', AI on' : ', AI off'})`);
   });
 

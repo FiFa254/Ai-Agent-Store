@@ -36,12 +36,27 @@ Double-click **`start.bat`**. It installs packages on the first run, builds, sta
 
 The database `GroceryAI` and all tables are created automatically (Windows login, no password).
 
+## Run with Docker (any machine)
+
+**Prerequisite:** Docker Desktop only (no Node.js, SQL Server or ODBC needed).
+
+Double-click **`docker-start.bat`**. It creates `.env` (and a database password) on the first run, builds the app,
+starts SQL Server and the web app, and opens <http://localhost:8080/staff>. Data is kept in the Docker volume `db-data`.
+
+- Stop: `docker compose down` · delete all data: `docker compose down -v`
+- Without Windows: `cp .env.example .env`, set `SA_PASSWORD`, then `docker compose up -d --build`
+- Deploying online (Render + an external SQL Server such as Azure SQL): see [DEPLOY.md](DEPLOY.md)
+
 ## Configuration (`.env`)
 
 | Key | Default | Purpose |
 |---|---|---|
 | `PORT` | `3000` | Web port |
-| `MSSQL_CONNECTION_STRING` | `Driver={ODBC Driver 17 for SQL Server};Server=localhost;Database=GroceryAI;Trusted_Connection=yes;` | SQL Server database |
+| `HOST` | `127.0.0.1` | Address to listen on (`0.0.0.0` in Docker / Render) |
+| `TRUST_PROXY` | `loopback` | Express `trust proxy` (`1` behind Render's proxy) |
+| `COOKIE_SECURE` | — | `true` to mark the session cookie `Secure` (HTTPS deployments) |
+| `SA_PASSWORD` | — | SQL Server password for `docker compose` |
+| `MSSQL_CONNECTION_STRING` | `Driver={ODBC Driver 17 for SQL Server};Server=localhost;Database=GroceryAI;Trusted_Connection=yes;` | SQL Server database. A `Driver=...` string uses ODBC (Windows login); any other string uses a SQL login, e.g. `Server=host,1433;Database=GroceryAI;User Id=sa;Password={...};TrustServerCertificate=true;` |
 | `GEMINI_API_KEY` | — | Enables the AI assistant |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model |
 | `SESSION_HOURS` | `12` | Staff session length (sliding) |

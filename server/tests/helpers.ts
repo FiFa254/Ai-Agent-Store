@@ -1,10 +1,10 @@
 // Test harness: a fresh GroceryAI_Test database (migrated) and the real Express app.
-import sql from 'msnodesqlv8';
 import request from 'supertest';
 import type { Role } from '@shared/schemas';
 import { createApp } from '../src/app';
 import { loadConfig } from '../src/config';
 import { Db } from '../src/db/db';
+import { runOnce } from '../src/db/driver';
 import { migrate } from '../src/db/migrate';
 import { createLogger } from '../src/lib/logger';
 
@@ -14,7 +14,7 @@ export const TEST_CONNECTION_STRING =
 
 export async function dropTestDatabase() {
   const master = TEST_CONNECTION_STRING.replace(/Database=[^;]+/i, 'Database=master');
-  await sql.promises.query(
+  await runOnce(
     master,
     `IF DB_ID(N'GroceryAI_Test') IS NOT NULL
      BEGIN ALTER DATABASE GroceryAI_Test SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE GroceryAI_Test; END`
