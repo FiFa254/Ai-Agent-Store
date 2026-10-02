@@ -37,16 +37,14 @@ export function DashboardPage() {
 
   return (
     <div>
-      <section className="relative mb-6 flex flex-wrap items-end justify-between gap-5 overflow-hidden rounded-[1.75rem] bg-forest px-6 py-7 text-white sm:px-8">
-        <div aria-hidden className="pointer-events-none absolute -right-10 -top-20 size-64 rounded-full bg-lime/10" />
-        <div className="relative min-w-0">
-          <p className="text-sm text-white/70">ภาพรวมของวันนี้ · {formatDate(todayBkk())}</p>
-          <h1 className="mt-1 text-balance font-display text-3xl font-bold tracking-tight">สวัสดี {me.data?.displayName ?? ''}</h1>
-          <p className="mt-2 text-sm text-white/75">วันนี้ขายไปแล้ว {formatNumber(d.today.items)} ชิ้น จาก {formatNumber(d.today.bills)} บิล</p>
+      <section className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] bg-forest px-6 py-5 text-white sm:px-8">
+        <div className="min-w-0">
+          <h1 className="text-balance font-display text-2xl font-bold tracking-tight">สวัสดี {me.data?.displayName ?? ''}</h1>
+          <p className="mt-1 text-sm text-white/70">ภาพรวมของวันนี้ · {formatDate(todayBkk())}</p>
         </div>
         <Link
           to="/staff/pos"
-          className="relative inline-flex h-12 items-center gap-2 rounded-full bg-lime px-6 font-semibold text-lime-ink transition-colors hover:bg-lime-strong"
+          className="inline-flex h-12 items-center gap-2 rounded-full bg-lime px-6 font-semibold text-lime-ink transition-colors hover:bg-lime-strong"
         >
           <ShoppingCart className="size-5" aria-hidden /> เปิดหน้าขาย
         </Link>
