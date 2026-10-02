@@ -1,8 +1,8 @@
 @echo off
-rem Double-click to run GrocerAI (storefront + staff back office) at http://localhost:3000
+rem Double-click to run GrocerAI (storefront + staff back office) at http://localhost:8080
 setlocal
 cd /d "%~dp0"
-title GrocerAI - http://localhost:3000
+title GrocerAI - http://localhost:8080
 
 where node >nul 2>nul
 if errorlevel 1 (
@@ -40,9 +40,9 @@ call npm run build
 if errorlevel 1 goto :fail
 
 set NODE_ENV=production
-start "" cmd /c "timeout /t 4 >nul & start http://localhost:3000/staff"
+start "" cmd /c "timeout /t 4 >nul & start http://localhost:8080/staff"
 echo.
-echo GrocerAI: storefront http://localhost:3000  -  staff back office http://localhost:3000/staff
+echo GrocerAI: storefront http://localhost:8080  -  staff back office http://localhost:8080/staff
 echo Close this window to stop it.
 echo.
 cd server
