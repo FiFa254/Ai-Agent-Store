@@ -3,7 +3,7 @@ import { Check, CheckCircle2, Circle, Clock, X, XCircle, type LucideIcon } from 
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { OrderStatus, PublicOrder } from '@shared/types';
-import { Badge, Button, Card, ErrorBox, PageHeader, Spinner, cx } from '@/components/ui';
+import { Button, Card, ErrorBox, PageHeader, Spinner, cx } from '@/components/ui';
 import { api } from '@/lib/api';
 import { formatBaht, formatDateTime, ORDER_STATUS_LABELS } from '@/lib/format';
 
@@ -85,11 +85,11 @@ export function OrderStatusPage() {
   if (order.isLoading) return <Spinner />;
   if (order.error || !order.data) return <ErrorBox error={order.error ?? 'ไม่พบคำสั่งซื้อ'} />;
   const o = order.data;
-  const tone = o.status === 'paid' ? 'green' : o.status === 'awaiting_payment' ? 'amber' : 'red';
+  const holdExpired = countdown === '0:00';
 
   return (
     <div className="mx-auto max-w-2xl">
-      <PageHeader title={`คำสั่งซื้อ ${o.orderNo}`} description={`สั่งเมื่อ ${formatDateTime(o.createdAt)}`} actions={<Badge tone={tone}>{ORDER_STATUS_LABELS[o.status]}</Badge>} />
+      <PageHeader title={`คำสั่งซื้อ ${o.orderNo}`} description={`สั่งเมื่อ ${formatDateTime(o.createdAt)}`} />
       <OrderTracker order={o} />
 
       {o.status === 'awaiting_payment' && (
@@ -105,7 +105,7 @@ export function OrderStatusPage() {
             <p className="text-sm">ชำระเงิน {formatBaht(o.total)} ที่หน้าร้าน {o.storeName} แจ้งเลขคำสั่งซื้อ {o.orderNo}</p>
           )}
           <p className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-sm font-medium text-warn tabular-nums">
-            <Clock className="size-4" aria-hidden /> กันสินค้าไว้ให้อีก {countdown} นาที
+            <Clock className="size-4" aria-hidden /> {holdExpired ? 'หมดเวลากันสินค้าแล้ว' : `กันสินค้าไว้ให้อีก ${countdown} นาที`}
           </p>
           <div className="mt-4">
             <Button variant="secondary" size="sm" loading={cancel.isPending} onClick={() => window.confirm('ยกเลิกคำสั่งซื้อนี้?') && cancel.mutate()}>
