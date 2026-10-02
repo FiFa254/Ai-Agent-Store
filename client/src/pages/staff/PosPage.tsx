@@ -146,7 +146,7 @@ export function PosPage() {
           {itemCount > 0 && <Badge tone="lime">{itemCount} ชิ้น</Badge>}
         </div>
         {lines.length === 0 ? (
-          <EmptyState title="ยังไม่มีสินค้า" description="สแกนหรือเลือกสินค้าทางซ้าย" />
+          <EmptyState title="ยังไม่มีสินค้า" description="สแกนบาร์โค้ด หรือแตะสินค้าเพื่อเพิ่มลงบิล" />
         ) : (
           <ul className="max-h-[45vh] divide-y divide-line overflow-y-auto">
             {lines.map((l) => (
